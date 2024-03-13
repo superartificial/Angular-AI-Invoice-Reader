@@ -1,0 +1,202 @@
+[
+    {
+      "id": 1,
+      "customer_name": "John Doe",
+      "invoice_number": "INV-001",
+      "invoice_date": "2023-05-01",
+      "amount": 1000.0,
+      "tax": 100.0
+    },
+    {
+      "id": 2,
+      "customer_name": "Jane Smith",
+      "invoice_number": "INV-002",
+      "invoice_date": "2023-05-02",
+      "amount": 1500.0,
+      "tax": 150.0
+    },
+    {
+      "id": 3,
+      "customer_name": "Mike Johnson",
+      "invoice_number": "INV-003",
+      "invoice_date": "2023-05-03",
+      "amount": 800.0,
+      "tax": 80.0
+    },
+    {
+      "id": 4,
+      "customer_name": "Emily Brown",
+      "invoice_number": "INV-004",
+      "invoice_date": "2023-05-04",
+      "amount": 2000.0,
+      "tax": 200.0
+    },
+    {
+      "id": 5,
+      "customer_name": "David Wilson",
+      "invoice_number": "INV-005",
+      "invoice_date": "2023-05-05",
+      "amount": 1200.0,
+      "tax": 120.0
+    },
+    {
+      "id": 6,
+      "customer_name": "Sarah Davis",
+      "invoice_number": "INV-006",
+      "invoice_date": "2023-05-06",
+      "amount": 900.0,
+      "tax": 90.0
+    },
+    {
+      "id": 7,
+      "customer_name": "Michael Miller",
+      "invoice_number": "INV-007",
+      "invoice_date": "2023-05-07",
+      "amount": 1800.0,
+      "tax": 180.0
+    },
+    {
+      "id": 8,
+      "customer_name": "Jennifer Wilson",
+      "invoice_number": "INV-008",
+      "invoice_date": "2023-05-08",
+      "amount": 1300.0,
+      "tax": 130.0
+    },
+    {
+      "id": 9,
+      "customer_name": "Christopher Taylor",
+      "invoice_number": "INV-009",
+      "invoice_date": "2023-05-09",
+      "amount": 1100.0,
+      "tax": 110.0
+    },
+    {
+      "id": 10,
+      "customer_name": "Amanda Anderson",
+      "invoice_number": "INV-010",
+      "invoice_date": "2023-05-10",
+      "amount": 1600.0,
+      "tax": 160.0
+    },
+    {
+      "id": 11,
+      "customer_name": "Matthew Thomas",
+      "invoice_number": "INV-011",
+      "invoice_date": "2023-05-11",
+      "amount": 950.0,
+      "tax": 95.0
+    },
+    {
+      "id": 12,
+      "customer_name": "Olivia Jackson",
+      "invoice_number": "INV-012",
+      "invoice_date": "2023-05-12",
+      "amount": 1400.0,
+      "tax": 140.0
+    },
+    {
+      "id": 13,
+      "customer_name": "Daniel White",
+      "invoice_number": "INV-013",
+      "invoice_date": "2023-05-13",
+      "amount": 1900.0,
+      "tax": 190.0
+    },
+    {
+      "id": 14,
+      "customer_name": "Sophia Harris",
+      "invoice_number": "INV-014",
+      "invoice_date": "2023-05-14",
+      "amount": 1700.0,
+      "tax": 170.0
+    },
+    {
+      "id": 15,
+      "customer_name": "Andrew Martin",
+      "invoice_number": "INV-015",
+      "invoice_date": "2023-05-15",
+      "amount": 1100.0,
+      "tax": 110.0
+    },
+    {
+      "id": 16,
+      "customer_name": "Emma Thompson",
+      "invoice_number": "INV-016",
+      "invoice_date": "2023-05-16",
+      "amount": 2100.0,
+      "tax": 210.0
+    },
+    {
+      "id": 17,
+      "customer_name": "Joseph Garcia",
+      "invoice_number": "INV-017",
+      "invoice_date": "2023-05-17",
+      "amount": 1200.0,
+      "tax": 120.0
+    },
+    {
+      "id": 18,
+      "customer_name": "Ava Martinez",
+      "invoice_number": "INV-018",
+      "invoice_date": "2023-05-18",
+      "amount": 800.0,
+      "tax": 80.0
+    },
+    {
+      "id": 19,
+      "customer_name": "William Robinson",
+      "invoice_number": "INV-019",
+      "invoice_date": "2023-05-19",
+      "amount": 1500.0,
+      "tax": 150.0
+    },
+    {
+      "id": 20,
+      "customer_name": "Mia Clark",
+      "invoice_number": "INV-020",
+      "invoice_date": "2023-05-20",
+      "amount": 1000.0,
+      "tax": 100.0
+    },
+    {
+      "id": 21,
+      "customer_name": "James Rodriguez",
+      "invoice_number": "INV-021",
+      "invoice_date": "2023-05-21",
+      "amount": 1300.0,
+      "tax": 130.0
+    },
+    {
+      "id": 22,
+      "customer_name": "Charlotte Lewis",
+      "invoice_number": "INV-022",
+      "invoice_date": "2023-05-22",
+      "amount": 1800.0,
+      "tax": 180.0
+    },
+    {
+      "id": 23,
+      "customer_name": "Benjamin Lee",
+      "invoice_number": "INV-023",
+      "invoice_date": "2023-05-23",
+      "amount": 900.0,
+      "tax": 90.0
+    },
+    {
+      "id": 24,
+      "customer_name": "Amelia Walker",
+      "invoice_number": "INV-024",
+      "invoice_date": "2023-05-24",
+      "amount": 1600.0,
+      "tax": 160.0
+    },
+    {
+      "id": 25,
+      "customer_name": "Henry Hall",
+      "invoice_number": "INV-025",
+      "invoice_date": "2023-05-25",
+      "amount": 1100.0,
+      "tax": 110.0
+    }
+  ]
