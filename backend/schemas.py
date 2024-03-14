@@ -3,7 +3,7 @@ from pydantic import BaseModel
 from typing import List, Optional
 
 class ContactSchema(BaseModel):
-    id: int
+    id: Optional[int]
     name: str
     line1: Optional[str] = None
     line2: Optional[str] = None
@@ -38,3 +38,15 @@ class InvoiceSchema(BaseModel):
 
     class Config:
         orm_mode = True
+        
+class InvoiceCreateSchema(BaseModel):
+    invoice_number: str
+    invoice_date: date
+    amount: float
+    tax: float
+    invoice_lines: List[InvoiceLineSchema]
+    payor: ContactSchema
+    payee: ContactSchema
+
+    class Config:
+        orm_mode = True        

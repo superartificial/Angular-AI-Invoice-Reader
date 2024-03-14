@@ -3,7 +3,7 @@ from fastapi import FastAPI, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from database import engine, create_tables, Invoice, InvoiceLine, Contact
-from schemas import InvoiceSchema
+from schemas import InvoiceSchema, InvoiceCreateSchema
 from datetime import datetime
 
 app = FastAPI()
@@ -81,3 +81,40 @@ def clear_data(db: Session = Depends(get_db)):
 def get_invoices(db: Session = Depends(get_db)):
     invoices = db.query(Invoice).all()
     return invoices
+
+def get_or_create_contact(db: Session, contact_data: dict):
+    contact = db.query(Contact).filter_by(
+        name=contact_data["name"],
+        line1=contact_data["line1"],
+        line2=contact_data.get("line2"),
+        city=contact_data["city"],
+        country=contact_data["country"],
+        postcode=contact_data["postcode"],
+        phone_number=contact_data["phone_number"],
+        email=contact_data["email"]
+    ).first()
+
+    if not contact:
+        contact = Contact(**contact_data)
+        db.add(contact)
+        db.flush()
+
+    return contact
+
+@app.post("/invoices", response_model=InvoiceSchema)
+def create_invoice(invoice: InvoiceCreateSchema, db: Session = Depends(get_db)):
+    payor_data = invoice.payor.dict(exclude={"id"})
+    payee_data = invoice.payee.dict(exclude={"id"})
+    invoice_lines_data = [line.dict() for line in invoice.invoice_lines]
+
+    payor = get_or_create_contact(db, payor_data)
+    payee = get_or_create_contact(db, payee_data)
+
+    invoice_data = invoice.dict(exclude={"payor", "payee", "invoice_lines"})
+    invoice_db = Invoice(**invoice_data, payor_id=payor.id, payee_id=payee.id)
+    db.add(invoice_db)
+    db.flush()
+
+    for line_data in invoice_lines_data:
+        invoice_line = InvoiceLine(**line_data, invoice_id=invoice_db.id)
+        db.add(invoice_line)

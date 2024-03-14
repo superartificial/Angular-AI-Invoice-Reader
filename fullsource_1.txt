@@ -1,0 +1,1948 @@
+
+
+---START OF FILE: compress.py---
+
+import bz2
+import base64
+
+def compress_text_file(input_file, output_file):
+    """
+    Compresses a text file using bz2 compression and encodes the compressed data in base64.
+    
+    Args:
+        input_file (str): Path to the input text file to be compressed.
+        output_file (str): Path to the output file where the compressed data will be written.
+    """
+    with open(input_file, 'rb') as f_in:
+        data = f_in.read()
+
+    compressed_data = bz2.compress(data)
+    base64_compressed_data = base64.b64encode(compressed_data).decode('utf-8')
+
+    with open(output_file, 'w', encoding='utf-8') as f_out:
+        f_out.write(base64_compressed_data)
+
+if __name__ == '__main__':
+    input_file = 'fullsource.txt'
+    output_file = 'fullsource_compressed.txt'
+    compress_text_file(input_file, output_file)
+
+---END OF FILE: compress.py---
+
+
+
+---START OF FILE: concat.py---
+
+import os
+import glob
+from tqdm import tqdm
+import fnmatch
+
+def concatenate_files(start_dir):
+    output_file_prefix = 'fullsource'
+    output_file_ext = '.txt'
+    ignored_files = []
+    ignored_dirs = []
+    output_file_index = 1
+    output_file_content = ''
+    max_file_size = 75000  # 75KB in bytes
+
+    total_files = sum(len(files) for _, _, files in os.walk(start_dir))
+    processed_files = 0
+
+    with tqdm(total=total_files, unit='file') as pbar:
+        for dirpath, dirnames, filenames in os.walk(start_dir):
+            # Check if .gitignore file exists in the current directory
+            gitignore_path = os.path.join(dirpath, '.gitignore')
+            if os.path.isfile(gitignore_path):
+                with open(gitignore_path, 'r') as f:
+                    patterns = [line.strip() for line in f if line.strip() and not line.strip().startswith('#')]
+                    dir_ignored_dirs = [os.path.normpath(os.path.join(dirpath, pattern)) for pattern in patterns if pattern.endswith('/')]
+                    file_ignored_patterns = [pattern for pattern in patterns if not pattern.endswith('/')]
+                    dir_ignored_files = [os.path.normpath(os.path.join(dirpath, filename)) for pattern in file_ignored_patterns for filename in filenames if fnmatch.fnmatch(filename, pattern)]
+                    ignored_dirs.extend(dir_ignored_dirs)
+                    ignored_files.extend(dir_ignored_files)
+
+            # Remove directories that match gitignore patterns
+            dirnames[:] = [d for d in dirnames if os.path.normpath(os.path.join(dirpath, d)) not in ignored_dirs]
+
+            for filename in filenames:
+                file_path = os.path.normpath(os.path.join(dirpath, filename))
+                if file_path not in ignored_files:
+                    relative_path = os.path.relpath(file_path, start_dir)
+                    _, ext = os.path.splitext(filename)
+
+                    # Only include text-based file types
+                    if ext.lower() in ['.txt', '.html', '.css', '.py', '.js', '.scss', '.ts', '.json']:
+                        try:
+                            with open(file_path, 'r', encoding='utf-8') as infile:
+                                file_content = f'\n\n---START OF FILE: {relative_path}---\n\n{infile.read()}\n\n---END OF FILE: {relative_path}---\n\n'
+                                file_content_size = len(file_content.encode('utf-8'))
+
+                                if len(output_file_content) + file_content_size > max_file_size:
+                                    output_file = f'{output_file_prefix}_{output_file_index}{output_file_ext}'
+                                    with open(output_file, 'w', encoding='utf-8') as outfile:
+                                        outfile.write(output_file_content)
+                                    output_file_index += 1
+                                    output_file_content = file_content
+                                else:
+                                    output_file_content += file_content
+
+                            processed_files += 1
+                            pbar.update(1)
+                        except UnicodeDecodeError:
+                            print(f'Warning: Could not decode {file_path}. Skipping file.')
+
+        # Write the remaining content to the last output file
+        if output_file_content:
+            output_file = f'{output_file_prefix}_{output_file_index}{output_file_ext}'
+            with open(output_file, 'w', encoding='utf-8') as outfile:
+                outfile.write(output_file_content)
+
+    print(f'All files have been concatenated into {output_file_prefix}_*.{output_file_ext}')
+
+if __name__ == '__main__':
+    start_dir = os.getcwd()  # Change this to the desired starting directory
+    concatenate_files(start_dir)
+
+---END OF FILE: concat.py---
+
+
+
+---START OF FILE: backend\database.py---
+
+from sqlalchemy import create_engine, Column, Integer, String, Float, Date, ForeignKey
+from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import relationship
+
+SQLALCHEMY_DATABASE_URL = "sqlite:///./invoices.db"
+
+engine = create_engine(
+    SQLALCHEMY_DATABASE_URL, connect_args={"check_same_thread": False}
+)
+Base = declarative_base()
+
+class Contact(Base):
+    __tablename__ = "contacts"
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String, index=True)
+    line1 = Column(String, nullable=True)
+    line2 = Column(String, nullable=True)
+    city = Column(String, nullable=True)
+    country = Column(String, nullable=True)
+    postcode = Column(String, nullable=True)
+    phone_number = Column(String, nullable=True)
+    email = Column(String, nullable=True)
+
+class InvoiceLine(Base):
+    __tablename__ = "invoice_lines"
+
+    id = Column(Integer, primary_key=True, index=True)
+    description = Column(String, nullable=True)
+    count = Column(Integer, nullable=True)
+    unit_cost = Column(Float, nullable=True)
+    line_amount = Column(Float, nullable=True)
+    invoice_id = Column(Integer, ForeignKey("invoices.id"))
+
+class Invoice(Base):
+    __tablename__ = "invoices"
+
+    id = Column(Integer, primary_key=True, index=True)
+    invoice_number = Column(String, index=True)
+    invoice_date = Column(Date, nullable=True)
+    amount = Column(Float, nullable=True)
+    tax = Column(Float, nullable=True)
+    payor_id = Column(Integer, ForeignKey("contacts.id"))
+    payee_id = Column(Integer, ForeignKey("contacts.id"))
+
+    invoice_lines = relationship("InvoiceLine", backref="invoice")
+    payor = relationship("Contact", foreign_keys=[payor_id])
+    payee = relationship("Contact", foreign_keys=[payee_id])
+
+def create_tables():
+    Base.metadata.create_all(bind=engine)
+
+---END OF FILE: backend\database.py---
+
+
+
+---START OF FILE: backend\main.py---
+
+import json
+from fastapi import FastAPI, Depends, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
+from sqlalchemy.orm import Session
+from database import engine, create_tables, Invoice, InvoiceLine, Contact
+from schemas import InvoiceSchema, InvoiceCreateSchema
+from datetime import datetime
+
+app = FastAPI()
+
+# CORS configuration
+origins = [
+    "http://localhost",
+    "http://localhost:4200",
+]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+def get_db():
+    db = Session(autocommit=False, autoflush=False, bind=engine)
+    try:
+        yield db
+    finally:
+        db.close()
+
+@app.on_event("startup")
+def startup_event():
+    create_tables()
+
+@app.post("/import-invoices")
+def import_invoices(db: Session = Depends(get_db)):
+    with open("invoices.json", "r") as file:
+        invoices_data = json.load(file)
+        for invoice_data in invoices_data:
+            payor_data = invoice_data.pop("payor")
+            payee_data = invoice_data.pop("payee")
+            invoice_lines_data = invoice_data.pop("invoice_lines")
+
+            payor = db.query(Contact).filter_by(name=payor_data["name"]).first()
+            if not payor:
+                payor = Contact(**payor_data)
+                db.add(payor)
+                db.flush()
+
+            payee = db.query(Contact).filter_by(name=payee_data["name"]).first()
+            if not payee:
+                payee = Contact(**payee_data)
+                db.add(payee)
+                db.flush()
+
+            # Convert invoice_date string to date object
+            invoice_date_str = invoice_data.pop("invoice_date")
+            invoice_date = datetime.strptime(invoice_date_str, "%Y-%m-%d").date()
+
+            invoice = Invoice(**invoice_data, invoice_date=invoice_date, payor_id=payor.id, payee_id=payee.id)
+            db.add(invoice)
+            db.flush()
+
+            for line_data in invoice_lines_data:
+                invoice_line = InvoiceLine(**line_data, invoice_id=invoice.id)
+                db.add(invoice_line)
+
+    db.commit()
+    return {"message": "Invoices imported successfully"}
+
+@app.post("/clear-data")
+def clear_data(db: Session = Depends(get_db)):
+    db.query(InvoiceLine).delete()
+    db.query(Invoice).delete()
+    db.query(Contact).delete()
+    db.commit()
+    return {"message": "Data cleared successfully"}
+
+@app.get("/invoices", response_model=list[InvoiceSchema])
+def get_invoices(db: Session = Depends(get_db)):
+    invoices = db.query(Invoice).all()
+    return invoices
+
+def get_or_create_contact(db: Session, contact_data: dict):
+    contact = db.query(Contact).filter_by(
+        name=contact_data["name"],
+        line1=contact_data["line1"],
+        line2=contact_data.get("line2"),
+        city=contact_data["city"],
+        country=contact_data["country"],
+        postcode=contact_data["postcode"],
+        phone_number=contact_data["phone_number"],
+        email=contact_data["email"]
+    ).first()
+
+    if not contact:
+        contact = Contact(**contact_data)
+        db.add(contact)
+        db.flush()
+
+    return contact
+
+@app.post("/invoices", response_model=InvoiceSchema)
+def create_invoice(invoice: InvoiceCreateSchema, db: Session = Depends(get_db)):
+    payor_data = invoice.payor.dict(exclude={"id"})
+    payee_data = invoice.payee.dict(exclude={"id"})
+    invoice_lines_data = [line.dict() for line in invoice.invoice_lines]
+
+    payor = get_or_create_contact(db, payor_data)
+    payee = get_or_create_contact(db, payee_data)
+
+    invoice_data = invoice.dict(exclude={"payor", "payee", "invoice_lines"})
+    invoice_db = Invoice(**invoice_data, payor_id=payor.id, payee_id=payee.id)
+    db.add(invoice_db)
+    db.flush()
+
+    for line_data in invoice_lines_data:
+        invoice_line = InvoiceLine(**line_data, invoice_id=invoice_db.id)
+        db.add(invoice_line)
+
+---END OF FILE: backend\main.py---
+
+
+
+---START OF FILE: backend\requirements.txt---
+
+fastapi
+uvicorn
+sqlalchemy 
+
+---END OF FILE: backend\requirements.txt---
+
+
+
+---START OF FILE: backend\schemas.py---
+
+from datetime import date
+from pydantic import BaseModel
+from typing import List, Optional
+
+class ContactSchema(BaseModel):
+    id: Optional[int]
+    name: str
+    line1: Optional[str] = None
+    line2: Optional[str] = None
+    city: Optional[str] = None
+    country: Optional[str] = None
+    postcode: Optional[str] = None
+    phone_number: Optional[str] = None
+    email: Optional[str] = None
+
+    class Config:
+        orm_mode = True
+
+class InvoiceLineSchema(BaseModel):
+    id: int
+    description: str
+    count: int
+    unit_cost: float
+    line_amount: float
+
+    class Config:
+        orm_mode = True
+
+class InvoiceSchema(BaseModel):
+    id: int
+    invoice_number: str
+    invoice_date: date
+    amount: float
+    tax: float
+    invoice_lines: List[InvoiceLineSchema]
+    payor: ContactSchema
+    payee: ContactSchema
+
+    class Config:
+        orm_mode = True
+        
+class InvoiceCreateSchema(BaseModel):
+    invoice_number: str
+    invoice_date: date
+    amount: float
+    tax: float
+    invoice_lines: List[InvoiceLineSchema]
+    payor: ContactSchema
+    payee: ContactSchema
+
+    class Config:
+        orm_mode = True        
+
+---END OF FILE: backend\schemas.py---
+
+
+
+---START OF FILE: frontend\angular.json---
+
+{
+  "$schema": "./node_modules/@angular/cli/lib/config/schema.json",
+  "version": 1,
+  "newProjectRoot": "projects",
+  "projects": {
+    "frontend": {
+      "projectType": "application",
+      "schematics": {
+        "@schematics/angular:component": {
+          "style": "scss"
+        }
+      },
+      "root": "",
+      "sourceRoot": "src",
+      "prefix": "app",
+      "architect": {
+        "build": {
+          "builder": "@angular-devkit/build-angular:application",
+          "options": {
+            "outputPath": "dist/frontend",
+            "index": "src/index.html",
+            "browser": "src/main.ts",
+            "polyfills": [
+              "zone.js"
+            ],
+            "tsConfig": "tsconfig.app.json",
+            "inlineStyleLanguage": "scss",
+            "assets": [
+              "src/favicon.ico",
+              "src/assets"
+            ],
+            "styles": [
+              "src/styles.scss","src/styles.css" 
+            ],
+            "scripts": []
+          },
+          "configurations": {
+            "production": {
+              "budgets": [
+                {
+                  "type": "initial",
+                  "maximumWarning": "500kb",
+                  "maximumError": "1mb"
+                },
+                {
+                  "type": "anyComponentStyle",
+                  "maximumWarning": "2kb",
+                  "maximumError": "4kb"
+                }
+              ],
+              "outputHashing": "all"
+            },
+            "development": {
+              "optimization": false,
+              "extractLicenses": false,
+              "sourceMap": true
+            }
+          },
+          "defaultConfiguration": "production"
+        },
+        "serve": {
+          "builder": "@angular-devkit/build-angular:dev-server",
+          "configurations": {
+            "production": {
+              "buildTarget": "frontend:build:production"
+            },
+            "development": {
+              "buildTarget": "frontend:build:development"
+            }
+          },
+          "defaultConfiguration": "development"
+        },
+        "extract-i18n": {
+          "builder": "@angular-devkit/build-angular:extract-i18n",
+          "options": {
+            "buildTarget": "frontend:build"
+          }
+        },
+        "test": {
+          "builder": "@angular-devkit/build-angular:karma",
+          "options": {
+            "polyfills": [
+              "zone.js",
+              "zone.js/testing"
+            ],
+            "tsConfig": "tsconfig.spec.json",
+            "inlineStyleLanguage": "scss",
+            "assets": [
+              "src/favicon.ico",
+              "src/assets"
+            ],
+            "styles": [
+              "src/styles.scss"
+            ],
+            "scripts": []
+          }
+        }
+      }
+    }
+  }
+}
+
+
+---END OF FILE: frontend\angular.json---
+
+
+
+---START OF FILE: frontend\package.json---
+
+{
+  "name": "frontend",
+  "version": "0.0.0",
+  "scripts": {
+    "ng": "ng",
+    "start": "ng serve",
+    "build": "ng build",
+    "watch": "ng build --watch --configuration development",
+    "test": "ng test"
+  },
+  "private": true,
+  "dependencies": {
+    "@angular/animations": "^17.2.0",
+    "@angular/common": "^17.2.0",
+    "@angular/compiler": "^17.2.0",
+    "@angular/core": "^17.2.0",
+    "@angular/forms": "^17.2.0",
+    "@angular/platform-browser": "^17.2.0",
+    "@angular/platform-browser-dynamic": "^17.2.0",
+    "@angular/router": "^17.2.0",
+    "ngx-pagination": "^6.0.3",
+    "rxjs": "~7.8.0",
+    "tslib": "^2.3.0",
+    "zone.js": "~0.14.3"
+  },
+  "devDependencies": {
+    "@angular-devkit/build-angular": "^17.2.3",
+    "@angular/cli": "^17.2.3",
+    "@angular/compiler-cli": "^17.2.0",
+    "@types/jasmine": "~5.1.0",
+    "autoprefixer": "^10.4.18",
+    "jasmine-core": "~5.1.0",
+    "karma": "~6.4.0",
+    "karma-chrome-launcher": "~3.2.0",
+    "karma-coverage": "~2.2.0",
+    "karma-jasmine": "~5.1.0",
+    "karma-jasmine-html-reporter": "~2.1.0",
+    "postcss": "^8.4.35",
+    "tailwindcss": "^3.4.1",
+    "typescript": "~5.3.2"
+  }
+}
+
+
+---END OF FILE: frontend\package.json---
+
+
+
+---START OF FILE: frontend\tailwind.config.js---
+
+module.exports = {
+  content: [
+    './src/**/*.{html,ts}',
+  ],
+  theme: {
+    extend: {},
+  },
+  plugins: [],
+}
+
+
+---END OF FILE: frontend\tailwind.config.js---
+
+
+
+---START OF FILE: frontend\tsconfig.app.json---
+
+/* To learn more about this file see: https://angular.io/config/tsconfig. */
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "outDir": "./out-tsc/app",
+    "types": []
+  },
+  "files": [
+    "src/main.ts"
+  ],
+  "include": [
+    "src/**/*.d.ts"
+  ]
+}
+
+
+---END OF FILE: frontend\tsconfig.app.json---
+
+
+
+---START OF FILE: frontend\tsconfig.json---
+
+/* To learn more about this file see: https://angular.io/config/tsconfig. */
+{
+  "compileOnSave": false,
+  "compilerOptions": {
+    "outDir": "./dist/out-tsc",
+    "forceConsistentCasingInFileNames": true,
+    "strict": true,
+    "noImplicitOverride": true,
+    "noPropertyAccessFromIndexSignature": true,
+    "noImplicitReturns": true,
+    "noFallthroughCasesInSwitch": true,
+    "skipLibCheck": true,
+    "esModuleInterop": true,
+    "sourceMap": true,
+    "declaration": false,
+    "experimentalDecorators": true,
+    "moduleResolution": "node",
+    "importHelpers": true,
+    "target": "ES2022",
+    "module": "ES2022",
+    "useDefineForClassFields": false,
+    "lib": [
+      "ES2022",
+      "dom"
+    ]
+  },
+  "angularCompilerOptions": {
+    "enableI18nLegacyMessageIdFormat": false,
+    "strictInjectionParameters": true,
+    "strictInputAccessModifiers": true,
+    "strictTemplates": true
+  }
+}
+
+
+---END OF FILE: frontend\tsconfig.json---
+
+
+
+---START OF FILE: frontend\tsconfig.spec.json---
+
+/* To learn more about this file see: https://angular.io/config/tsconfig. */
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "outDir": "./out-tsc/spec",
+    "types": [
+      "jasmine"
+    ]
+  },
+  "include": [
+    "src/**/*.spec.ts",
+    "src/**/*.d.ts"
+  ]
+}
+
+
+---END OF FILE: frontend\tsconfig.spec.json---
+
+
+
+---START OF FILE: frontend\.vscode\extensions.json---
+
+{
+  // For more information, visit: https://go.microsoft.com/fwlink/?linkid=827846
+  "recommendations": ["angular.ng-template"]
+}
+
+
+---END OF FILE: frontend\.vscode\extensions.json---
+
+
+
+---START OF FILE: frontend\.vscode\launch.json---
+
+{
+  // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "ng serve",
+      "type": "chrome",
+      "request": "launch",
+      "preLaunchTask": "npm: start",
+      "url": "http://localhost:4200/"
+    },
+    {
+      "name": "ng test",
+      "type": "chrome",
+      "request": "launch",
+      "preLaunchTask": "npm: test",
+      "url": "http://localhost:9876/debug.html"
+    }
+  ]
+}
+
+
+---END OF FILE: frontend\.vscode\launch.json---
+
+
+
+---START OF FILE: frontend\.vscode\tasks.json---
+
+{
+  // For more information, visit: https://go.microsoft.com/fwlink/?LinkId=733558
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "type": "npm",
+      "script": "start",
+      "isBackground": true,
+      "problemMatcher": {
+        "owner": "typescript",
+        "pattern": "$tsc",
+        "background": {
+          "activeOnStart": true,
+          "beginsPattern": {
+            "regexp": "(.*?)"
+          },
+          "endsPattern": {
+            "regexp": "bundle generation complete"
+          }
+        }
+      }
+    },
+    {
+      "type": "npm",
+      "script": "test",
+      "isBackground": true,
+      "problemMatcher": {
+        "owner": "typescript",
+        "pattern": "$tsc",
+        "background": {
+          "activeOnStart": true,
+          "beginsPattern": {
+            "regexp": "(.*?)"
+          },
+          "endsPattern": {
+            "regexp": "bundle generation complete"
+          }
+        }
+      }
+    }
+  ]
+}
+
+
+---END OF FILE: frontend\.vscode\tasks.json---
+
+
+
+---START OF FILE: frontend\src\index.html---
+
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Frontend</title>
+  <base href="/">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="icon" type="image/x-icon" href="favicon.ico">
+</head>
+<body>
+  <app-root></app-root>
+</body>
+</html>
+
+
+---END OF FILE: frontend\src\index.html---
+
+
+
+---START OF FILE: frontend\src\main.ts---
+
+import { bootstrapApplication } from '@angular/platform-browser';
+import { appConfig } from './app/app.config';
+import { AppComponent } from './app/app.component';
+
+bootstrapApplication(AppComponent, appConfig)
+  .catch((err) => console.error(err));
+
+---END OF FILE: frontend\src\main.ts---
+
+
+
+---START OF FILE: frontend\src\styles.css---
+
+
+
+---END OF FILE: frontend\src\styles.css---
+
+
+
+---START OF FILE: frontend\src\styles.scss---
+
+/* You can add global styles to this file, and also import other style files */
+
+@import 'tailwindcss/base';
+@import 'tailwindcss/components';
+@import 'tailwindcss/utilities';
+
+---END OF FILE: frontend\src\styles.scss---
+
+
+
+---START OF FILE: frontend\src\app\app.component.html---
+
+<div class="flex flex-col min-h-screen">
+  <app-header></app-header>
+  <main class="flex-grow container mx-auto my-8">
+    <router-outlet></router-outlet>
+  </main>
+  <app-footer></app-footer>
+</div>
+
+---END OF FILE: frontend\src\app\app.component.html---
+
+
+
+---START OF FILE: frontend\src\app\app.component.scss---
+
+
+
+---END OF FILE: frontend\src\app\app.component.scss---
+
+
+
+---START OF FILE: frontend\src\app\app.component.spec.ts---
+
+import { TestBed } from '@angular/core/testing';
+import { AppComponent } from './app.component';
+
+describe('AppComponent', () => {
+  beforeEach(async () => {
+    await TestBed.configureTestingModule({
+      imports: [AppComponent],
+    }).compileComponents();
+  });
+
+  it('should create the app', () => {
+    const fixture = TestBed.createComponent(AppComponent);
+    const app = fixture.componentInstance;
+    expect(app).toBeTruthy();
+  });
+
+  it(`should have the 'frontend' title`, () => {
+    const fixture = TestBed.createComponent(AppComponent);
+    const app = fixture.componentInstance;
+    expect(app.title).toEqual('frontend');
+  });
+
+  it('should render title', () => {
+    const fixture = TestBed.createComponent(AppComponent);
+    fixture.detectChanges();
+    const compiled = fixture.nativeElement as HTMLElement;
+    expect(compiled.querySelector('h1')?.textContent).toContain('Hello, frontend');
+  });
+});
+
+
+---END OF FILE: frontend\src\app\app.component.spec.ts---
+
+
+
+---START OF FILE: frontend\src\app\app.component.ts---
+
+import { Component } from '@angular/core';
+import { InvoicesComponent } from './invoices/invoices.component';
+import { HeaderComponent } from './header/header.component';
+import { FooterComponent } from './footer/footer.component';
+import { RouterOutlet } from '@angular/router';
+
+@Component({
+  selector: 'app-root',
+  templateUrl: './app.component.html',
+  styleUrls: ['./app.component.scss'],
+  standalone: true,
+  imports: [InvoicesComponent,HeaderComponent,FooterComponent,RouterOutlet]
+})
+export class AppComponent {
+  title = 'Invoice Management System';
+}
+
+---END OF FILE: frontend\src\app\app.component.ts---
+
+
+
+---START OF FILE: frontend\src\app\app.config.ts---
+
+import { ApplicationConfig } from '@angular/core';
+import { provideRouter } from '@angular/router';
+
+import { routes } from './app.routes';
+import { provideHttpClient } from '@angular/common/http';
+
+export const appConfig: ApplicationConfig = {
+  providers: [provideRouter(routes),provideHttpClient()]
+};
+
+
+---END OF FILE: frontend\src\app\app.config.ts---
+
+
+
+---START OF FILE: frontend\src\app\app.routes.ts---
+
+import { Routes } from '@angular/router';
+import { InvoiceListComponent } from './invoice-list/invoice-list.component';
+import { NewInvoiceFormComponent } from './new-invoice-form/new-invoice-form.component';
+import { UploadInvoiceComponent } from './upload-invoice/upload-invoice.component';
+import { PayorsListComponent } from './payors-list/payors-list.component';
+import { InvoicesComponent } from './invoices/invoices.component';
+
+export const routes: Routes = [
+    { path: '', redirectTo: '/invoices', pathMatch: 'full' },
+    { path: 'invoices', component: InvoicesComponent },
+    { path: 'new-invoice', component: NewInvoiceFormComponent },
+    { path: 'upload-invoice', component: UploadInvoiceComponent },
+    { path: 'payors', component: PayorsListComponent }
+];
+
+
+---END OF FILE: frontend\src\app\app.routes.ts---
+
+
+
+---START OF FILE: frontend\src\app\contact-form-section\contact-form-section.component.html---
+
+<div class="space-y-6 sm:space-y-5">
+    <div>
+      <h3 class="text-lg leading-6 font-medium text-gray-900">{{ title }}</h3>
+    </div>
+    <div class="space-y-6 sm:space-y-5">
+      <div class="sm:grid sm:grid-cols-3 sm:gap-4 sm:items-start sm:border-t sm:border-gray-200 sm:pt-5">
+        <label for="{{ identifier }}_name" class="block text-sm font-medium text-gray-700 sm:mt-px sm:pt-2">
+          Name
+        </label>
+        <div class="mt-1 sm:mt-0 sm:col-span-2">
+          <input type="text" name="{{ identifier }}_name" id="{{ identifier }}_name" [(ngModel)]="contact.name" required
+                 class="block max-w-lg w-full shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm border-gray-300 rounded-md">
+        </div>
+      </div>
+      <div class="sm:grid sm:grid-cols-3 sm:gap-4 sm:items-start sm:border-t sm:border-gray-200 sm:pt-5">
+        <label for="{{ identifier }}_line1" class="block text-sm font-medium text-gray-700 sm:mt-px sm:pt-2">
+          Address Line 1
+        </label>
+        <div class="mt-1 sm:mt-0 sm:col-span-2">
+          <input type="text" name="{{ identifier }}_line1" id="{{ identifier }}_line1" [(ngModel)]="contact.line1" required
+                 class="block max-w-lg w-full shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm border-gray-300 rounded-md">
+        </div>
+      </div>
+      <div class="sm:grid sm:grid-cols-3 sm:gap-4 sm:items-start sm:border-t sm:border-gray-200 sm:pt-5">
+        <label for="{{ identifier }}_line2" class="block text-sm font-medium text-gray-700 sm:mt-px sm:pt-2">
+          Address Line 2
+        </label>
+        <div class="mt-1 sm:mt-0 sm:col-span-2">
+          <input type="text" name="{{ identifier }}_line2" id="{{ identifier }}_line2" [(ngModel)]="contact.line2"
+                 class="block max-w-lg w-full shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm border-gray-300 rounded-md">
+        </div>
+      </div>
+      <div class="sm:grid sm:grid-cols-3 sm:gap-4 sm:items-start sm:border-t sm:border-gray-200 sm:pt-5">
+        <label for="{{ identifier }}_city" class="block text-sm font-medium text-gray-700 sm:mt-px sm:pt-2">
+          City
+        </label>
+        <div class="mt-1 sm:mt-0 sm:col-span-2">
+          <input type="text" name="{{ identifier }}_city" id="{{ identifier }}_city" [(ngModel)]="contact.city" required
+                 class="block max-w-lg w-full shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm border-gray-300 rounded-md">
+        </div>
+      </div>
+      <div class="sm:grid sm:grid-cols-3 sm:gap-4 sm:items-start sm:border-t sm:border-gray-200 sm:pt-5">
+        <label for="{{ identifier }}_country" class="block text-sm font-medium text-gray-700 sm:mt-px sm:pt-2">
+          Country
+        </label>
+        <div class="mt-1 sm:mt-0 sm:col-span-2">
+          <input type="text" name="{{ identifier }}_country" id="{{ identifier }}_country" [(ngModel)]="contact.country" required
+                 class="block max-w-lg w-full shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm border-gray-300 rounded-md">
+        </div>
+      </div>
+      <div class="sm:grid sm:grid-cols-3 sm:gap-4 sm:items-start sm:border-t sm:border-gray-200 sm:pt-5">
+        <label for="{{ identifier }}_postcode" class="block text-sm font-medium text-gray-700 sm:mt-px sm:pt-2">
+          Postcode
+        </label>
+        <div class="mt-1 sm:mt-0 sm:col-span-2">
+          <input type="text" name="{{ identifier }}_postcode" id="{{ identifier }}_postcode" [(ngModel)]="contact.postcode" required
+                 class="block max-w-lg w-full shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm border-gray-300 rounded-md">
+        </div>
+      </div>
+      <div class="sm:grid sm:grid-cols-3 sm:gap-4 sm:items-start sm:border-t sm:border-gray-200 sm:pt-5">
+        <label for="{{ identifier }}_phone_number" class="block text-sm font-medium text-gray-700 sm:mt-px sm:pt-2">
+          Phone Number
+        </label>
+        <div class="mt-1 sm:mt-0 sm:col-span-2">
+          <input type="tel" name="{{ identifier }}_phone_number" id="{{ identifier }}_phone_number" [(ngModel)]="contact.phone_number" required
+                 class="block max-w-lg w-full shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm border-gray-300 rounded-md">
+        </div>
+      </div>
+      <div class="sm:grid sm:grid-cols-3 sm:gap-4 sm:items-start sm:border-t sm:border-gray-200 sm:pt-5">
+        <label for="{{ identifier }}_email" class="block text-sm font-medium text-gray-700 sm:mt-px sm:pt-2">
+          Email
+        </label>
+        <div class="mt-1 sm:mt-0 sm:col-span-2">
+          <input type="email" name="{{ identifier }}_email" id="{{ identifier }}_email" [(ngModel)]="contact.email" required
+                 class="block max-w-lg w-full shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm border-gray-300 rounded-md">
+        </div>
+      </div>
+    </div>
+  </div>
+
+---END OF FILE: frontend\src\app\contact-form-section\contact-form-section.component.html---
+
+
+
+---START OF FILE: frontend\src\app\contact-form-section\contact-form-section.component.scss---
+
+
+
+---END OF FILE: frontend\src\app\contact-form-section\contact-form-section.component.scss---
+
+
+
+---START OF FILE: frontend\src\app\contact-form-section\contact-form-section.component.spec.ts---
+
+import { ComponentFixture, TestBed } from '@angular/core/testing';
+
+import { ContactFormSectionComponent } from './contact-form-section.component';
+
+describe('ContactFormSectionComponent', () => {
+  let component: ContactFormSectionComponent;
+  let fixture: ComponentFixture<ContactFormSectionComponent>;
+
+  beforeEach(async () => {
+    await TestBed.configureTestingModule({
+      imports: [ContactFormSectionComponent]
+    })
+    .compileComponents();
+    
+    fixture = TestBed.createComponent(ContactFormSectionComponent);
+    component = fixture.componentInstance;
+    fixture.detectChanges();
+  });
+
+  it('should create', () => {
+    expect(component).toBeTruthy();
+  });
+});
+
+
+---END OF FILE: frontend\src\app\contact-form-section\contact-form-section.component.spec.ts---
+
+
+
+---START OF FILE: frontend\src\app\contact-form-section\contact-form-section.component.ts---
+
+import { Component, Input } from '@angular/core';
+import { Contact } from '../models/contact.model';
+import { FormsModule } from '@angular/forms';
+
+@Component({
+  selector: 'app-contact-form-section',
+  standalone: true,
+  imports: [ FormsModule ],
+  templateUrl: './contact-form-section.component.html',
+  styleUrl: './contact-form-section.component.scss'
+})
+export class ContactFormSectionComponent {
+  @Input() title: string = '';
+  @Input() identifier: string = '';
+  @Input() contact: Contact = {
+    name: '',
+    line1: '',
+    line2: '',
+    city: '',
+    country: '',
+    postcode: '',
+    phone_number: '',
+    email: ''
+  };
+}
+
+---END OF FILE: frontend\src\app\contact-form-section\contact-form-section.component.ts---
+
+
+
+---START OF FILE: frontend\src\app\footer\footer.component.html---
+
+<footer class="bg-gray-800 text-white py-4 mt-8">
+    <div class="container mx-auto text-center">
+      <p class="text-sm">&copy; 2023 Invoice Management System. All rights reserved.</p>
+    </div>
+  </footer>
+
+---END OF FILE: frontend\src\app\footer\footer.component.html---
+
+
+
+---START OF FILE: frontend\src\app\footer\footer.component.scss---
+
+
+
+---END OF FILE: frontend\src\app\footer\footer.component.scss---
+
+
+
+---START OF FILE: frontend\src\app\footer\footer.component.spec.ts---
+
+import { ComponentFixture, TestBed } from '@angular/core/testing';
+
+import { FooterComponent } from './footer.component';
+
+describe('FooterComponent', () => {
+  let component: FooterComponent;
+  let fixture: ComponentFixture<FooterComponent>;
+
+  beforeEach(async () => {
+    await TestBed.configureTestingModule({
+      imports: [FooterComponent]
+    })
+    .compileComponents();
+    
+    fixture = TestBed.createComponent(FooterComponent);
+    component = fixture.componentInstance;
+    fixture.detectChanges();
+  });
+
+  it('should create', () => {
+    expect(component).toBeTruthy();
+  });
+});
+
+
+---END OF FILE: frontend\src\app\footer\footer.component.spec.ts---
+
+
+
+---START OF FILE: frontend\src\app\footer\footer.component.ts---
+
+import { Component } from '@angular/core';
+
+@Component({
+  selector: 'app-footer',
+  standalone: true,
+  imports: [],
+  templateUrl: './footer.component.html',
+  styleUrl: './footer.component.scss'
+})
+export class FooterComponent {
+
+}
+
+
+---END OF FILE: frontend\src\app\footer\footer.component.ts---
+
+
+
+---START OF FILE: frontend\src\app\header\header.component.html---
+
+<header class="bg-gradient-to-r from-blue-500 to-indigo-600 text-white py-4 sticky top-0 z-10">
+    <div class="container mx-auto flex justify-between items-center">
+      <h1 class="text-2xl font-bold tracking-wider">Invoice Mgmt</h1>
+      <app-menu></app-menu>
+    </div>
+  </header>
+
+---END OF FILE: frontend\src\app\header\header.component.html---
+
+
+
+---START OF FILE: frontend\src\app\header\header.component.scss---
+
+
+
+---END OF FILE: frontend\src\app\header\header.component.scss---
+
+
+
+---START OF FILE: frontend\src\app\header\header.component.spec.ts---
+
+import { ComponentFixture, TestBed } from '@angular/core/testing';
+
+import { HeaderComponent } from './header.component';
+
+describe('HeaderComponent', () => {
+  let component: HeaderComponent;
+  let fixture: ComponentFixture<HeaderComponent>;
+
+  beforeEach(async () => {
+    await TestBed.configureTestingModule({
+      imports: [HeaderComponent]
+    })
+    .compileComponents();
+    
+    fixture = TestBed.createComponent(HeaderComponent);
+    component = fixture.componentInstance;
+    fixture.detectChanges();
+  });
+
+  it('should create', () => {
+    expect(component).toBeTruthy();
+  });
+});
+
+
+---END OF FILE: frontend\src\app\header\header.component.spec.ts---
+
+
+
+---START OF FILE: frontend\src\app\header\header.component.ts---
+
+import { Component } from '@angular/core';
+import { MenuComponent } from '../menu/menu.component';
+
+@Component({
+  selector: 'app-header',
+  standalone: true,
+  imports: [MenuComponent],
+  templateUrl: './header.component.html',
+  styleUrl: './header.component.scss'
+})
+export class HeaderComponent {
+
+}
+
+
+---END OF FILE: frontend\src\app\header\header.component.ts---
+
+
+
+---START OF FILE: frontend\src\app\invoice-lines\invoice-lines.component.html---
+
+<div class="space-y-4">
+  <div *ngFor="let line of invoiceLines; let i = index" class="flex items-center space-x-4">
+    <input type="text" [(ngModel)]="line.description" placeholder="Description" class="flex-grow border border-gray-300 rounded-md px-3 py-2">
+    <input type="number" [(ngModel)]="line.count" placeholder="Count" class="w-24 border border-gray-300 rounded-md px-3 py-2">
+    <input type="number" [(ngModel)]="line.unit_cost" placeholder="Unit Cost" class="w-32 border border-gray-300 rounded-md px-3 py-2">
+    <button (click)="deleteLine(i)" class="text-red-500 hover:text-red-700 focus:outline-none">
+      <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+      </svg>
+    </button>
+  </div>
+  <button (click)="addLine()" class="bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600 focus:outline-none">
+    Add Line
+  </button>
+</div>
+
+
+---END OF FILE: frontend\src\app\invoice-lines\invoice-lines.component.html---
+
+
+
+---START OF FILE: frontend\src\app\invoice-lines\invoice-lines.component.scss---
+
+
+
+---END OF FILE: frontend\src\app\invoice-lines\invoice-lines.component.scss---
+
+
+
+---START OF FILE: frontend\src\app\invoice-lines\invoice-lines.component.spec.ts---
+
+import { ComponentFixture, TestBed } from '@angular/core/testing';
+
+import { InvoiceLinesComponent } from './invoice-lines.component';
+
+describe('InvoiceLinesComponent', () => {
+  let component: InvoiceLinesComponent;
+  let fixture: ComponentFixture<InvoiceLinesComponent>;
+
+  beforeEach(async () => {
+    await TestBed.configureTestingModule({
+      imports: [InvoiceLinesComponent]
+    })
+    .compileComponents();
+    
+    fixture = TestBed.createComponent(InvoiceLinesComponent);
+    component = fixture.componentInstance;
+    fixture.detectChanges();
+  });
+
+  it('should create', () => {
+    expect(component).toBeTruthy();
+  });
+});
+
+
+---END OF FILE: frontend\src\app\invoice-lines\invoice-lines.component.spec.ts---
+
+
+
+---START OF FILE: frontend\src\app\invoice-lines\invoice-lines.component.ts---
+
+import { Component, Input, Output, EventEmitter } from '@angular/core';
+import { CommonModule } from '@angular/common';
+import { InvoiceLine } from '../models/invoice.model';
+import { FormsModule } from '@angular/forms';
+
+@Component({
+  selector: 'app-invoice-lines',
+  templateUrl: './invoice-lines.component.html',
+  standalone: true,
+  imports: [ FormsModule, CommonModule ],  
+})
+export class InvoiceLinesComponent {
+  @Input() invoiceLines: InvoiceLine[] = [];
+  @Output() invoiceLinesChange = new EventEmitter<InvoiceLine[]>();
+
+  addLine() {
+    this.invoiceLines.push({
+      description: '',
+      count: 0,
+      unit_cost: 0,
+      line_amount: 0
+    });
+    this.emitChanges();
+  }
+
+  deleteLine(index: number) {
+    this.invoiceLines.splice(index, 1);
+    this.emitChanges();
+  }
+
+  emitChanges() {
+    this.invoiceLinesChange.emit(this.invoiceLines);
+  }
+}
+
+---END OF FILE: frontend\src\app\invoice-lines\invoice-lines.component.ts---
+
+
+
+---START OF FILE: frontend\src\app\invoice-list\invoice-list.component.html---
+
+<div class="bg-white shadow-md rounded-lg p-6">
+    <h2 class="text-2xl font-bold mb-4">Invoices</h2>
+    <table class="table-auto w-full">
+      <!-- Table content remains the same -->
+    </table>
+  </div>
+
+---END OF FILE: frontend\src\app\invoice-list\invoice-list.component.html---
+
+
+
+---START OF FILE: frontend\src\app\invoice-list\invoice-list.component.scss---
+
+
+
+---END OF FILE: frontend\src\app\invoice-list\invoice-list.component.scss---
+
+
+
+---START OF FILE: frontend\src\app\invoice-list\invoice-list.component.spec.ts---
+
+import { ComponentFixture, TestBed } from '@angular/core/testing';
+
+import { InvoiceListComponent } from './invoice-list.component';
+
+describe('InvoiceListComponent', () => {
+  let component: InvoiceListComponent;
+  let fixture: ComponentFixture<InvoiceListComponent>;
+
+  beforeEach(async () => {
+    await TestBed.configureTestingModule({
+      imports: [InvoiceListComponent]
+    })
+    .compileComponents();
+    
+    fixture = TestBed.createComponent(InvoiceListComponent);
+    component = fixture.componentInstance;
+    fixture.detectChanges();
+  });
+
+  it('should create', () => {
+    expect(component).toBeTruthy();
+  });
+});
+
+
+---END OF FILE: frontend\src\app\invoice-list\invoice-list.component.spec.ts---
+
+
+
+---START OF FILE: frontend\src\app\invoice-list\invoice-list.component.ts---
+
+import { Component } from '@angular/core';
+
+@Component({
+  selector: 'app-invoice-list',
+  standalone: true,
+  imports: [],
+  templateUrl: './invoice-list.component.html',
+  styleUrl: './invoice-list.component.scss'
+})
+export class InvoiceListComponent {
+
+}
+
+
+---END OF FILE: frontend\src\app\invoice-list\invoice-list.component.ts---
+
+
+
+---START OF FILE: frontend\src\app\invoices\invoices.component.html---
+
+<!-- invoice-list.component.html -->
+<div class="not-prose relative bg-slate-50 rounded-xl overflow-hidden dark:bg-slate-800/25">
+  <div style="background-position:10px 10px" class="absolute inset-0 bg-grid-slate-100 [mask-image:linear-gradient(0deg,#fff,rgba(255,255,255,0.6))] dark:bg-grid-slate-700/25 dark:[mask-image:linear-gradient(0deg,rgba(255,255,255,0.1),rgba(255,255,255,0.5))]"></div>
+  <div class="relative rounded-xl overflow-auto">
+    <div class="shadow-sm overflow-hidden my-8">
+      <table class="border-collapse table-auto w-full text-sm">
+        <thead>
+          <tr>
+            <th class="border-b dark:border-slate-600 font-medium p-4 pl-8 pt-0 pb-3 text-slate-400 dark:text-slate-200 text-left">Invoice Number</th>
+            <th class="border-b dark:border-slate-600 font-medium p-4 pt-0 pb-3 text-slate-400 dark:text-slate-200 text-left">Payor</th>
+            <th class="border-b dark:border-slate-600 font-medium p-4 pt-0 pb-3 text-slate-400 dark:text-slate-200 text-left">Payee</th>
+            <th class="border-b dark:border-slate-600 font-medium p-4 pt-0 pb-3 text-slate-400 dark:text-slate-200 text-left">Invoice Date</th>
+            <th class="border-b dark:border-slate-600 font-medium p-4 pt-0 pb-3 text-slate-400 dark:text-slate-200 text-left">Amount</th>
+            <th class="border-b dark:border-slate-600 font-medium p-4 pr-8 pt-0 pb-3 text-slate-400 dark:text-slate-200 text-left">Tax</th>
+          </tr>
+        </thead>
+        <tbody class="bg-white dark:bg-slate-800">
+          <tr *ngFor="let invoice of invoices | paginate: { itemsPerPage: pageSize, currentPage: currentPage }">
+            <td class="border-b border-slate-100 dark:border-slate-700 p-4 pl-8 text-slate-500 dark:text-slate-400">{{ invoice.invoice_number }}</td>
+            <td class="border-b border-slate-100 dark:border-slate-700 p-4 text-slate-500 dark:text-slate-400">{{ invoice.payor?.name }}</td>
+            <td class="border-b border-slate-100 dark:border-slate-700 p-4 text-slate-500 dark:text-slate-400">{{ invoice.payee?.name }}</td>
+            <td class="border-b border-slate-100 dark:border-slate-700 p-4 text-slate-500 dark:text-slate-400">{{ invoice.invoice_date | date }}</td>
+            <td class="border-b border-slate-100 dark:border-slate-700 p-4 text-slate-500 dark:text-slate-400">{{ invoice.amount }}</td>
+            <td class="border-b border-slate-100 dark:border-slate-700 p-4 pr-8 text-slate-500 dark:text-slate-400">{{ invoice.tax }}</td>
+          </tr>
+        </tbody>
+      </table>
+      <div class="mt-4">
+        <pagination-controls class="" (pageChange)="currentPage = $event"></pagination-controls>
+      </div>
+    </div>
+  </div>
+  <div class="absolute inset-0 pointer-events-none border border-black/5 rounded-xl dark:border-white/5"></div>
+</div>
+
+---END OF FILE: frontend\src\app\invoices\invoices.component.html---
+
+
+
+---START OF FILE: frontend\src\app\invoices\invoices.component.scss---
+
+
+
+---END OF FILE: frontend\src\app\invoices\invoices.component.scss---
+
+
+
+---START OF FILE: frontend\src\app\invoices\invoices.component.spec.ts---
+
+import { ComponentFixture, TestBed } from '@angular/core/testing';
+
+import { InvoicesComponent } from './invoices.component';
+
+describe('InvoicesComponent', () => {
+  let component: InvoicesComponent;
+  let fixture: ComponentFixture<InvoicesComponent>;
+
+  beforeEach(async () => {
+    await TestBed.configureTestingModule({
+      imports: [InvoicesComponent]
+    })
+    .compileComponents();
+    
+    fixture = TestBed.createComponent(InvoicesComponent);
+    component = fixture.componentInstance;
+    fixture.detectChanges();
+  });
+
+  it('should create', () => {
+    expect(component).toBeTruthy();
+  });
+});
+
+
+---END OF FILE: frontend\src\app\invoices\invoices.component.spec.ts---
+
+
+
+---START OF FILE: frontend\src\app\invoices\invoices.component.ts---
+
+import { Component, OnInit } from '@angular/core';
+import { CommonModule } from '@angular/common';
+import { InvoiceService } from '../services/invoice.service';
+import { Invoice } from '../models/invoice.model';
+import { NgxPaginationModule } from 'ngx-pagination';
+
+@Component({
+  selector: 'app-invoices',
+  templateUrl: './invoices.component.html',
+  styleUrls: ['./invoices.component.scss'],
+  standalone: true,
+  imports: [CommonModule, NgxPaginationModule]
+})
+export class InvoicesComponent implements OnInit {
+  invoices: Invoice[] = [];
+  currentPage = 1;
+  pageSize = 10;  
+
+  constructor(private invoiceService: InvoiceService) { }
+
+  ngOnInit(): void {
+    console.log('in invoice list')
+    this.getInvoices();
+  }
+
+  getInvoices(): void {
+    this.invoiceService.getInvoices()
+      .subscribe(invoices => this.invoices = invoices);
+  }
+}
+
+---END OF FILE: frontend\src\app\invoices\invoices.component.ts---
+
+
+
+---START OF FILE: frontend\src\app\menu\menu.component.html---
+
+<nav>
+    <ul class="flex space-x-4">
+      <li><a routerLink="/invoices" class="text-white hover:text-gray-200 font-semibold transition duration-300">Invoices</a></li>
+      <li><a routerLink="/new-invoice" class="text-white hover:text-gray-200 font-semibold transition duration-300">New Invoice</a></li>
+      <li><a routerLink="/upload-invoice" class="text-white hover:text-gray-200 font-semibold transition duration-300">Upload</a></li>
+      <li><a routerLink="/payors" class="text-white hover:text-gray-200 font-semibold transition duration-300">Payors</a></li>
+    </ul>
+  </nav>
+
+---END OF FILE: frontend\src\app\menu\menu.component.html---
+
+
+
+---START OF FILE: frontend\src\app\menu\menu.component.scss---
+
+
+
+---END OF FILE: frontend\src\app\menu\menu.component.scss---
+
+
+
+---START OF FILE: frontend\src\app\menu\menu.component.spec.ts---
+
+import { ComponentFixture, TestBed } from '@angular/core/testing';
+
+import { MenuComponent } from './menu.component';
+
+describe('MenuComponent', () => {
+  let component: MenuComponent;
+  let fixture: ComponentFixture<MenuComponent>;
+
+  beforeEach(async () => {
+    await TestBed.configureTestingModule({
+      imports: [MenuComponent]
+    })
+    .compileComponents();
+    
+    fixture = TestBed.createComponent(MenuComponent);
+    component = fixture.componentInstance;
+    fixture.detectChanges();
+  });
+
+  it('should create', () => {
+    expect(component).toBeTruthy();
+  });
+});
+
+
+---END OF FILE: frontend\src\app\menu\menu.component.spec.ts---
+
+
+
+---START OF FILE: frontend\src\app\menu\menu.component.ts---
+
+import { Component } from '@angular/core';
+import { RouterLink } from '@angular/router';
+
+@Component({
+  selector: 'app-menu',
+  standalone: true,
+  imports: [RouterLink],
+  templateUrl: './menu.component.html',
+  styleUrl: './menu.component.scss'
+})
+export class MenuComponent {
+
+}
+
+
+---END OF FILE: frontend\src\app\menu\menu.component.ts---
+
+
+
+---START OF FILE: frontend\src\app\models\contact.model.ts---
+
+  export interface Contact {
+    name: string;
+    line1: string;
+    line2: string;
+    city: string;
+    country: string;
+    postcode: string;
+    phone_number: string;
+    email: string;
+  }
+  
+
+
+---END OF FILE: frontend\src\app\models\contact.model.ts---
+
+
+
+---START OF FILE: frontend\src\app\models\invoice.model.ts---
+
+import { Contact } from "./contact.model";
+
+export interface Invoice {
+  invoice_number: string;
+  invoice_date: Date;
+  amount: number;
+  tax: number;
+  payor: Contact;
+  payee: Contact;
+  invoice_lines: InvoiceLine[];
+}
+
+export interface InvoiceLine {
+  description: string;
+  count: number;
+  unit_cost: number;
+  line_amount: number;
+}
+
+---END OF FILE: frontend\src\app\models\invoice.model.ts---
+
+
+
+---START OF FILE: frontend\src\app\new-invoice-form\new-invoice-form.component.html---
+
+<div class="not-prose relative bg-slate-50 rounded-xl overflow-hidden dark:bg-slate-800/25">
+    <div class="relative rounded-xl overflow-auto">
+      <div class="shadow-sm overflow-hidden my-8">
+        <form (ngSubmit)="onSubmit()" class="space-y-8 divide-y divide-gray-200 p-8">
+          <div class="space-y-8 divide-y divide-gray-200 sm:space-y-5">
+            <div class="space-y-6 sm:space-y-5">
+              <div>
+                <h3 class="text-lg leading-6 font-medium text-gray-900">Invoice Details</h3>
+              </div>
+              <div class="space-y-6 sm:space-y-5">
+                <div class="sm:grid sm:grid-cols-3 sm:gap-4 sm:items-start sm:border-t sm:border-gray-200 sm:pt-5">
+                  <label for="invoice_number" class="block text-sm font-medium text-gray-700 sm:mt-px sm:pt-2">
+                    Invoice Number
+                  </label>
+                  <div class="mt-1 sm:mt-0 sm:col-span-2">
+                    <input type="text" name="invoice_number" id="invoice_number" [(ngModel)]="invoice.invoice_number" required
+                           class="block max-w-lg w-full shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm border-gray-300 rounded-md">
+                  </div>
+                </div>
+                <div class="sm:grid sm:grid-cols-3 sm:gap-4 sm:items-start sm:border-t sm:border-gray-200 sm:pt-5">
+                  <label for="invoice_date" class="block text-sm font-medium text-gray-700 sm:mt-px sm:pt-2">
+                    Invoice Date
+                  </label>
+                  <div class="mt-1 sm:mt-0 sm:col-span-2">
+                    <input type="date" name="invoice_date" id="invoice_date" [(ngModel)]="invoice.invoice_date" required
+                           class="block max-w-lg w-full shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm border-gray-300 rounded-md">
+                  </div>
+                </div>
+                <!-- Add more fields for invoice details -->
+              </div>
+            </div>
+            <div class="md:grid md:grid-cols-2 md:gap-8">
+              <div>
+                <app-contact-form-section title="Payor Details" identifier="payor" [contact]="invoice.payor"></app-contact-form-section>
+              </div>
+              <div>
+                <app-contact-form-section title="Payee Details" identifier="payee" [contact]="invoice.payee"></app-contact-form-section>
+              </div>
+            </div>
+            <div class="space-y-6 sm:space-y-5">
+                <div>
+                  <h3 class="text-lg leading-6 font-medium text-gray-900">Invoice Lines</h3>
+                </div>
+                <div class="space-y-6 sm:space-y-5">
+                  <app-invoice-lines [(invoiceLines)]="invoice.invoice_lines"></app-invoice-lines>
+                </div>
+              </div>
+          </div>
+          <div class="pt-5">
+            <div class="flex justify-end">
+              <button type="button" (click)="onCancel()"
+                      class="bg-white py-2 px-4 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                Cancel
+              </button>
+              <button type="submit"
+                      class="ml-3 inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                Save
+              </button>
+            </div>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+---END OF FILE: frontend\src\app\new-invoice-form\new-invoice-form.component.html---
+
+
+
+---START OF FILE: frontend\src\app\new-invoice-form\new-invoice-form.component.scss---
+
+
+
+---END OF FILE: frontend\src\app\new-invoice-form\new-invoice-form.component.scss---
+
+
+
+---START OF FILE: frontend\src\app\new-invoice-form\new-invoice-form.component.spec.ts---
+
+import { ComponentFixture, TestBed } from '@angular/core/testing';
+
+import { NewInvoiceFormComponent } from './new-invoice-form.component';
+
+describe('NewInvoiceFormComponent', () => {
+  let component: NewInvoiceFormComponent;
+  let fixture: ComponentFixture<NewInvoiceFormComponent>;
+
+  beforeEach(async () => {
+    await TestBed.configureTestingModule({
+      imports: [NewInvoiceFormComponent]
+    })
+    .compileComponents();
+    
+    fixture = TestBed.createComponent(NewInvoiceFormComponent);
+    component = fixture.componentInstance;
+    fixture.detectChanges();
+  });
+
+  it('should create', () => {
+    expect(component).toBeTruthy();
+  });
+});
+
+
+---END OF FILE: frontend\src\app\new-invoice-form\new-invoice-form.component.spec.ts---
+
+
+
+---START OF FILE: frontend\src\app\new-invoice-form\new-invoice-form.component.ts---
+
+import { Component, OnInit } from '@angular/core';
+import { Router } from '@angular/router';
+import { InvoiceService } from '../services/invoice.service';
+import { Invoice, InvoiceLine } from '../models/invoice.model';
+import { ContactFormSectionComponent } from '../contact-form-section/contact-form-section.component';
+import { InvoiceLinesComponent } from '../invoice-lines/invoice-lines.component';
+import { FormsModule } from '@angular/forms';
+
+@Component({
+  selector: 'app-new-invoice-form',
+  templateUrl: './new-invoice-form.component.html',
+  styleUrls: ['./new-invoice-form.component.scss'],
+  standalone: true,
+  imports: [ ContactFormSectionComponent, InvoiceLinesComponent, FormsModule ]
+})
+export class NewInvoiceFormComponent implements OnInit {
+  invoice: Invoice = {
+    invoice_number: '',
+    invoice_date: new Date(),
+    amount: 0,
+    tax: 0,
+    payor: {
+      name: '',
+      line1: '',
+      line2: '',
+      city: '',
+      country: '',
+      postcode: '',
+      phone_number: '',
+      email: ''
+    },
+    payee: {
+      name: '',
+      line1: '',
+      line2: '',
+      city: '',
+      country: '',
+      postcode: '',
+      phone_number: '',
+      email: ''
+    },
+    invoice_lines: []
+  };
+
+  constructor(private invoiceService: InvoiceService, private router: Router) { }
+
+  ngOnInit(): void {
+  }
+
+  onSubmit(): void {
+    this.invoiceService.createInvoice(this.invoice)
+      .subscribe(
+        response => {
+          console.log('Invoice created successfully:', response);
+          this.router.navigate(['/invoices']);
+        },
+        error => {
+          console.error('Error creating invoice:', error);
+        }
+      );
+  }
+
+  onCancel(): void {
+    this.router.navigate(['/invoices']);
+  }
+}
+
+---END OF FILE: frontend\src\app\new-invoice-form\new-invoice-form.component.ts---
+
+
+
+---START OF FILE: frontend\src\app\payors-list\payors-list.component.html---
+
+<p>payors-list works!</p>
+
+
+---END OF FILE: frontend\src\app\payors-list\payors-list.component.html---
+
+
+
+---START OF FILE: frontend\src\app\payors-list\payors-list.component.scss---
+
+
+
+---END OF FILE: frontend\src\app\payors-list\payors-list.component.scss---
+
+
+
+---START OF FILE: frontend\src\app\payors-list\payors-list.component.spec.ts---
+
+import { ComponentFixture, TestBed } from '@angular/core/testing';
+
+import { PayorsListComponent } from './payors-list.component';
+
+describe('PayorsListComponent', () => {
+  let component: PayorsListComponent;
+  let fixture: ComponentFixture<PayorsListComponent>;
+
+  beforeEach(async () => {
+    await TestBed.configureTestingModule({
+      imports: [PayorsListComponent]
+    })
+    .compileComponents();
+    
+    fixture = TestBed.createComponent(PayorsListComponent);
+    component = fixture.componentInstance;
+    fixture.detectChanges();
+  });
+
+  it('should create', () => {
+    expect(component).toBeTruthy();
+  });
+});
+
+
+---END OF FILE: frontend\src\app\payors-list\payors-list.component.spec.ts---
+
+
+
+---START OF FILE: frontend\src\app\payors-list\payors-list.component.ts---
+
+import { Component } from '@angular/core';
+
+@Component({
+  selector: 'app-payors-list',
+  standalone: true,
+  imports: [],
+  templateUrl: './payors-list.component.html',
+  styleUrl: './payors-list.component.scss'
+})
+export class PayorsListComponent {
+
+}
+
+
+---END OF FILE: frontend\src\app\payors-list\payors-list.component.ts---
+
+
+
+---START OF FILE: frontend\src\app\services\invoice.service.ts---
+
+import { Injectable } from '@angular/core';
+import { HttpClient } from '@angular/common/http';
+import { Observable } from 'rxjs';
+import { Invoice } from '../models/invoice.model';
+
+@Injectable({
+  providedIn: 'root'
+})
+export class InvoiceService {
+  private apiUrl = 'http://localhost:8000';
+
+  constructor(private http: HttpClient) { }
+
+  getInvoices(): Observable<Invoice[]> {
+    return this.http.get<Invoice[]>(`${this.apiUrl}/invoices`);
+  }
+
+  createInvoice(invoice: Invoice): Observable<Invoice> {
+    return this.http.post<Invoice>(`${this.apiUrl}/invoices`, invoice);
+  }
+}
+
+---END OF FILE: frontend\src\app\services\invoice.service.ts---
+
+
+
+---START OF FILE: frontend\src\app\upload-invoice\upload-invoice.component.html---
+
+<p>upload-invoice works!</p>
+
+
+---END OF FILE: frontend\src\app\upload-invoice\upload-invoice.component.html---
+
+
+
+---START OF FILE: frontend\src\app\upload-invoice\upload-invoice.component.scss---
+
+
+
+---END OF FILE: frontend\src\app\upload-invoice\upload-invoice.component.scss---
+
+
+
+---START OF FILE: frontend\src\app\upload-invoice\upload-invoice.component.spec.ts---
+
+import { ComponentFixture, TestBed } from '@angular/core/testing';
+
+import { UploadInvoiceComponent } from './upload-invoice.component';
+
+describe('UploadInvoiceComponent', () => {
+  let component: UploadInvoiceComponent;
+  let fixture: ComponentFixture<UploadInvoiceComponent>;
+
+  beforeEach(async () => {
+    await TestBed.configureTestingModule({
+      imports: [UploadInvoiceComponent]
+    })
+    .compileComponents();
+    
+    fixture = TestBed.createComponent(UploadInvoiceComponent);
+    component = fixture.componentInstance;
+    fixture.detectChanges();
+  });
+
+  it('should create', () => {
+    expect(component).toBeTruthy();
+  });
+});
+
+
+---END OF FILE: frontend\src\app\upload-invoice\upload-invoice.component.spec.ts---
+
+
+
+---START OF FILE: frontend\src\app\upload-invoice\upload-invoice.component.ts---
+
+import { Component } from '@angular/core';
+
+@Component({
+  selector: 'app-upload-invoice',
+  standalone: true,
+  imports: [],
+  templateUrl: './upload-invoice.component.html',
+  styleUrl: './upload-invoice.component.scss'
+})
+export class UploadInvoiceComponent {
+
+}
+
+
+---END OF FILE: frontend\src\app\upload-invoice\upload-invoice.component.ts---
+

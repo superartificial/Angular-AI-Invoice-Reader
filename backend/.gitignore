@@ -21,3 +21,4 @@ env/
 # Other
 .DS_Store
 Thumbs.db
+invoices.json
