@@ -1,0 +1,79 @@
+<div class="space-y-6 sm:space-y-5">
+    <div>
+      <h3 class="text-lg leading-6 font-medium text-gray-900">{{ title }}</h3>
+    </div>
+    <div class="space-y-6 sm:space-y-5">
+      <div class="sm:grid sm:grid-cols-3 sm:gap-4 sm:items-start sm:border-t sm:border-gray-200 sm:pt-5">
+        <label for="{{ identifier }}_name" class="block text-sm font-medium text-gray-700 sm:mt-px sm:pt-2">
+          Name
+        </label>
+        <div class="mt-1 sm:mt-0 sm:col-span-2">
+          <input type="text" name="{{ identifier }}_name" id="{{ identifier }}_name" [(ngModel)]="contact.name" required
+                 class="block max-w-lg w-full shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm border-gray-300 rounded-md">
+        </div>
+      </div>
+      <div class="sm:grid sm:grid-cols-3 sm:gap-4 sm:items-start sm:border-t sm:border-gray-200 sm:pt-5">
+        <label for="{{ identifier }}_line1" class="block text-sm font-medium text-gray-700 sm:mt-px sm:pt-2">
+          Address Line 1
+        </label>
+        <div class="mt-1 sm:mt-0 sm:col-span-2">
+          <input type="text" name="{{ identifier }}_line1" id="{{ identifier }}_line1" [(ngModel)]="contact.line1" required
+                 class="block max-w-lg w-full shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm border-gray-300 rounded-md">
+        </div>
+      </div>
+      <div class="sm:grid sm:grid-cols-3 sm:gap-4 sm:items-start sm:border-t sm:border-gray-200 sm:pt-5">
+        <label for="{{ identifier }}_line2" class="block text-sm font-medium text-gray-700 sm:mt-px sm:pt-2">
+          Address Line 2
+        </label>
+        <div class="mt-1 sm:mt-0 sm:col-span-2">
+          <input type="text" name="{{ identifier }}_line2" id="{{ identifier }}_line2" [(ngModel)]="contact.line2"
+                 class="block max-w-lg w-full shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm border-gray-300 rounded-md">
+        </div>
+      </div>
+      <div class="sm:grid sm:grid-cols-3 sm:gap-4 sm:items-start sm:border-t sm:border-gray-200 sm:pt-5">
+        <label for="{{ identifier }}_city" class="block text-sm font-medium text-gray-700 sm:mt-px sm:pt-2">
+          City
+        </label>
+        <div class="mt-1 sm:mt-0 sm:col-span-2">
+          <input type="text" name="{{ identifier }}_city" id="{{ identifier }}_city" [(ngModel)]="contact.city" required
+                 class="block max-w-lg w-full shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm border-gray-300 rounded-md">
+        </div>
+      </div>
+      <div class="sm:grid sm:grid-cols-3 sm:gap-4 sm:items-start sm:border-t sm:border-gray-200 sm:pt-5">
+        <label for="{{ identifier }}_country" class="block text-sm font-medium text-gray-700 sm:mt-px sm:pt-2">
+          Country
+        </label>
+        <div class="mt-1 sm:mt-0 sm:col-span-2">
+          <input type="text" name="{{ identifier }}_country" id="{{ identifier }}_country" [(ngModel)]="contact.country" required
+                 class="block max-w-lg w-full shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm border-gray-300 rounded-md">
+        </div>
+      </div>
+      <div class="sm:grid sm:grid-cols-3 sm:gap-4 sm:items-start sm:border-t sm:border-gray-200 sm:pt-5">
+        <label for="{{ identifier }}_postcode" class="block text-sm font-medium text-gray-700 sm:mt-px sm:pt-2">
+          Postcode
+        </label>
+        <div class="mt-1 sm:mt-0 sm:col-span-2">
+          <input type="text" name="{{ identifier }}_postcode" id="{{ identifier }}_postcode" [(ngModel)]="contact.postcode" required
+                 class="block max-w-lg w-full shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm border-gray-300 rounded-md">
+        </div>
+      </div>
+      <div class="sm:grid sm:grid-cols-3 sm:gap-4 sm:items-start sm:border-t sm:border-gray-200 sm:pt-5">
+        <label for="{{ identifier }}_phone_number" class="block text-sm font-medium text-gray-700 sm:mt-px sm:pt-2">
+          Phone Number
+        </label>
+        <div class="mt-1 sm:mt-0 sm:col-span-2">
+          <input type="tel" name="{{ identifier }}_phone_number" id="{{ identifier }}_phone_number" [(ngModel)]="contact.phone_number" required
+                 class="block max-w-lg w-full shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm border-gray-300 rounded-md">
+        </div>
+      </div>
+      <div class="sm:grid sm:grid-cols-3 sm:gap-4 sm:items-start sm:border-t sm:border-gray-200 sm:pt-5">
+        <label for="{{ identifier }}_email" class="block text-sm font-medium text-gray-700 sm:mt-px sm:pt-2">
+          Email
+        </label>
+        <div class="mt-1 sm:mt-0 sm:col-span-2">
+          <input type="email" name="{{ identifier }}_email" id="{{ identifier }}_email" [(ngModel)]="contact.email" required
+                 class="block max-w-lg w-full shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm border-gray-300 rounded-md">
+        </div>
+      </div>
+    </div>
+  </div>

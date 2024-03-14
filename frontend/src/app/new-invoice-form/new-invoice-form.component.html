@@ -1,0 +1,64 @@
+<div class="not-prose relative bg-slate-50 rounded-xl overflow-hidden dark:bg-slate-800/25">
+    <div class="relative rounded-xl overflow-auto">
+      <div class="shadow-sm overflow-hidden my-8">
+        <form (ngSubmit)="onSubmit()" class="space-y-8 divide-y divide-gray-200 p-8">
+          <div class="space-y-8 divide-y divide-gray-200 sm:space-y-5">
+            <div class="space-y-6 sm:space-y-5">
+              <div>
+                <h3 class="text-lg leading-6 font-medium text-gray-900">Invoice Details</h3>
+              </div>
+              <div class="space-y-6 sm:space-y-5">
+                <div class="sm:grid sm:grid-cols-3 sm:gap-4 sm:items-start sm:border-t sm:border-gray-200 sm:pt-5">
+                  <label for="invoice_number" class="block text-sm font-medium text-gray-700 sm:mt-px sm:pt-2">
+                    Invoice Number
+                  </label>
+                  <div class="mt-1 sm:mt-0 sm:col-span-2">
+                    <input type="text" name="invoice_number" id="invoice_number" [(ngModel)]="invoice.invoice_number" required
+                           class="block max-w-lg w-full shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm border-gray-300 rounded-md">
+                  </div>
+                </div>
+                <div class="sm:grid sm:grid-cols-3 sm:gap-4 sm:items-start sm:border-t sm:border-gray-200 sm:pt-5">
+                  <label for="invoice_date" class="block text-sm font-medium text-gray-700 sm:mt-px sm:pt-2">
+                    Invoice Date
+                  </label>
+                  <div class="mt-1 sm:mt-0 sm:col-span-2">
+                    <input type="date" name="invoice_date" id="invoice_date" [(ngModel)]="invoice.invoice_date" required
+                           class="block max-w-lg w-full shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm border-gray-300 rounded-md">
+                  </div>
+                </div>
+                <!-- Add more fields for invoice details -->
+              </div>
+            </div>
+            <div class="md:grid md:grid-cols-2 md:gap-8">
+              <div>
+                <app-contact-form-section title="Payor Details" identifier="payor" [contact]="invoice.payor"></app-contact-form-section>
+              </div>
+              <div>
+                <app-contact-form-section title="Payee Details" identifier="payee" [contact]="invoice.payee"></app-contact-form-section>
+              </div>
+            </div>
+            <div class="space-y-6 sm:space-y-5">
+                <div>
+                  <h3 class="text-lg leading-6 font-medium text-gray-900">Invoice Lines</h3>
+                </div>
+                <div class="space-y-6 sm:space-y-5">
+                  <app-invoice-lines [(invoiceLines)]="invoice.invoice_lines"></app-invoice-lines>
+                </div>
+              </div>
+          </div>
+          <div class="pt-5">
+            <div class="flex justify-end">
+              <button type="button" (click)="onCancel()"
+                      class="bg-white py-2 px-4 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                Cancel
+              </button>
+              <button type="submit"
+                      class="ml-3 inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                Save
+              </button>
+            </div>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
