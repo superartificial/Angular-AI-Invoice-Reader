@@ -14,21 +14,24 @@ export class InvoiceLinesComponent {
   @Output() invoiceLinesChange = new EventEmitter<InvoiceLine[]>();
 
   addLine() {
-    this.invoiceLines.push({
+    const newLine: InvoiceLine = {
       description: '',
       count: 0,
       unit_cost: 0,
       line_amount: 0
-    });
-    this.emitChanges();
+    };
+
+    this.invoiceLines.push(newLine);
+    this.invoiceLinesChange.emit(this.invoiceLines);
   }
 
   deleteLine(index: number) {
     this.invoiceLines.splice(index, 1);
-    this.emitChanges();
+    this.invoiceLinesChange.emit(this.invoiceLines);
   }
 
-  emitChanges() {
-    this.invoiceLinesChange.emit(this.invoiceLines);
+  calculateLineAmount(index: number) {
+    const line = this.invoiceLines[index];
+    line.line_amount = line.count * line.unit_cost;
   }
 }

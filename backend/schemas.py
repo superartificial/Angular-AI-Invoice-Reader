@@ -17,7 +17,7 @@ class ContactSchema(BaseModel):
         orm_mode = True
 
 class InvoiceLineSchema(BaseModel):
-    id: int
+    id: Optional[int]
     description: str
     count: int
     unit_cost: float

@@ -1,6 +1,7 @@
 import { Contact } from "./contact.model";
 
 export interface Invoice {
+  id: number;
   invoice_number: string;
   invoice_date: Date;
   amount: number;

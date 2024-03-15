@@ -3,6 +3,7 @@ import { CommonModule } from '@angular/common';
 import { InvoiceService } from '../services/invoice.service';
 import { Invoice } from '../models/invoice.model';
 import { NgxPaginationModule } from 'ngx-pagination';
+import { Router } from '@angular/router';
 
 @Component({
   selector: 'app-invoices',
@@ -16,7 +17,7 @@ export class InvoicesComponent implements OnInit {
   currentPage = 1;
   pageSize = 10;  
 
-  constructor(private invoiceService: InvoiceService) { }
+  constructor(private invoiceService: InvoiceService, private router: Router) { }
 
   ngOnInit(): void {
     console.log('in invoice list')
@@ -27,4 +28,9 @@ export class InvoicesComponent implements OnInit {
     this.invoiceService.getInvoices()
       .subscribe(invoices => this.invoices = invoices);
   }
+
+  editInvoice(invoiceId: number): void {
+    this.router.navigate(['/new-invoice', invoiceId]);
+  }
+
 }

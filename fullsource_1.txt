@@ -273,22 +273,72 @@ def get_or_create_contact(db: Session, contact_data: dict):
     return contact
 
 @app.post("/invoices", response_model=InvoiceSchema)
-def create_invoice(invoice: InvoiceCreateSchema, db: Session = Depends(get_db)):
+def create_or_update_invoice(invoice: InvoiceSchema, db: Session = Depends(get_db)):
     payor_data = invoice.payor.dict(exclude={"id"})
     payee_data = invoice.payee.dict(exclude={"id"})
-    invoice_lines_data = [line.dict() for line in invoice.invoice_lines]
+    invoice_lines_data = [line.dict(exclude={"id"}) for line in invoice.invoice_lines]
 
-    payor = get_or_create_contact(db, payor_data)
-    payee = get_or_create_contact(db, payee_data)
+    if invoice.id == -1:
+        # Create new invoice
+        payor = get_or_create_contact(db, payor_data)
+        payee = get_or_create_contact(db, payee_data)
 
-    invoice_data = invoice.dict(exclude={"payor", "payee", "invoice_lines"})
-    invoice_db = Invoice(**invoice_data, payor_id=payor.id, payee_id=payee.id)
-    db.add(invoice_db)
-    db.flush()
+        invoice_data = invoice.dict(exclude={"payor", "payee", "invoice_lines", "id"})
+        invoice_db = Invoice(**invoice_data, payor_id=payor.id, payee_id=payee.id)
+        db.add(invoice_db)
+        db.flush()
 
-    for line_data in invoice_lines_data:
-        invoice_line = InvoiceLine(**line_data, invoice_id=invoice_db.id)
-        db.add(invoice_line)
+        for line_data in invoice_lines_data:
+            invoice_line = InvoiceLine(**line_data, invoice_id=invoice_db.id)
+            db.add(invoice_line)
+    else:
+        # Update existing invoice
+        invoice_db = db.query(Invoice).filter(Invoice.id == invoice.id).first()
+        if not invoice_db:
+            raise HTTPException(status_code=404, detail="Invoice not found")
+
+        # Update contact details
+        payor = get_or_create_contact(db, payor_data)
+        payee = get_or_create_contact(db, payee_data)
+
+        invoice_data = invoice.dict(exclude={"payor", "payee", "invoice_lines", "id"})
+        for key, value in invoice_data.items():
+            setattr(invoice_db, key, value)
+
+        invoice_db.payor_id = payor.id
+        invoice_db.payee_id = payee.id
+
+        # Update invoice lines
+        existing_line_ids = [line.id for line in invoice_db.invoice_lines]
+        updated_line_ids = []
+
+        for line_data in invoice_lines_data:
+            if "id" in line_data and line_data["id"] in existing_line_ids:
+                # Update existing line
+                line_id = line_data.pop("id")
+                db.query(InvoiceLine).filter(InvoiceLine.id == line_id).update(line_data)
+                updated_line_ids.append(line_id)
+            else:
+                # Create new line
+                invoice_line = InvoiceLine(**line_data, invoice_id=invoice_db.id)
+                db.add(invoice_line)
+
+        # Delete lines that are not in the updated data
+        deleted_line_ids = set(existing_line_ids) - set(updated_line_ids)
+        if deleted_line_ids:
+            db.query(InvoiceLine).filter(InvoiceLine.id.in_(deleted_line_ids)).delete(synchronize_session=False)
+
+    db.commit()
+    db.refresh(invoice_db)
+
+    return invoice_db
+
+@app.get("/invoices/{invoice_id}", response_model=InvoiceSchema)
+def get_invoice(invoice_id: int, db: Session = Depends(get_db)):
+    invoice = db.query(Invoice).filter(Invoice.id == invoice_id).first()
+    if not invoice:
+        raise HTTPException(status_code=404, detail="Invoice not found")
+    return invoice
 
 ---END OF FILE: backend\main.py---
 
@@ -298,7 +348,7 @@ def create_invoice(invoice: InvoiceCreateSchema, db: Session = Depends(get_db)):
 
 fastapi
 uvicorn
-sqlalchemy 
+sqlalchemy
 
 ---END OF FILE: backend\requirements.txt---
 
@@ -325,7 +375,7 @@ class ContactSchema(BaseModel):
         orm_mode = True
 
 class InvoiceLineSchema(BaseModel):
-    id: int
+    id: Optional[int]
     description: str
     count: int
     unit_cost: float
@@ -750,7 +800,9 @@ bootstrapApplication(AppComponent, appConfig)
 
 ---START OF FILE: frontend\src\styles.css---
 
-
+#test {
+    background-color: #f0f0f3;
+}
 
 ---END OF FILE: frontend\src\styles.css---
 
@@ -873,15 +925,16 @@ import { Routes } from '@angular/router';
 import { InvoiceListComponent } from './invoice-list/invoice-list.component';
 import { NewInvoiceFormComponent } from './new-invoice-form/new-invoice-form.component';
 import { UploadInvoiceComponent } from './upload-invoice/upload-invoice.component';
-import { PayorsListComponent } from './payors-list/payors-list.component';
 import { InvoicesComponent } from './invoices/invoices.component';
+import { ContactListComponent } from './contact-list/contact-list.component';
 
 export const routes: Routes = [
     { path: '', redirectTo: '/invoices', pathMatch: 'full' },
     { path: 'invoices', component: InvoicesComponent },
     { path: 'new-invoice', component: NewInvoiceFormComponent },
     { path: 'upload-invoice', component: UploadInvoiceComponent },
-    { path: 'payors', component: PayorsListComponent }
+    { path: 'contacts', component: ContactListComponent },
+    { path: 'new-invoice/:id', component: NewInvoiceFormComponent }
 ];
 
 
@@ -1046,6 +1099,74 @@ export class ContactFormSectionComponent {
 
 
 
+---START OF FILE: frontend\src\app\contact-list\contact-list.component.html---
+
+<p>contact-list works!</p>
+
+
+---END OF FILE: frontend\src\app\contact-list\contact-list.component.html---
+
+
+
+---START OF FILE: frontend\src\app\contact-list\contact-list.component.scss---
+
+
+
+---END OF FILE: frontend\src\app\contact-list\contact-list.component.scss---
+
+
+
+---START OF FILE: frontend\src\app\contact-list\contact-list.component.spec.ts---
+
+import { ComponentFixture, TestBed } from '@angular/core/testing';
+
+import { ContactListComponent } from './contact-list.component';
+
+describe('ContactListComponent', () => {
+  let component: ContactListComponent;
+  let fixture: ComponentFixture<ContactListComponent>;
+
+  beforeEach(async () => {
+    await TestBed.configureTestingModule({
+      imports: [ContactListComponent]
+    })
+    .compileComponents();
+    
+    fixture = TestBed.createComponent(ContactListComponent);
+    component = fixture.componentInstance;
+    fixture.detectChanges();
+  });
+
+  it('should create', () => {
+    expect(component).toBeTruthy();
+  });
+});
+
+
+---END OF FILE: frontend\src\app\contact-list\contact-list.component.spec.ts---
+
+
+
+---START OF FILE: frontend\src\app\contact-list\contact-list.component.ts---
+
+import { Component } from '@angular/core';
+
+@Component({
+  selector: 'app-contact-list',
+  standalone: true,
+  imports: [],
+  templateUrl: './contact-list.component.html',
+  styleUrl: './contact-list.component.scss'
+})
+export class ContactListComponent {
+
+}
+
+
+---END OF FILE: frontend\src\app\contact-list\contact-list.component.ts---
+
+
+
 ---START OF FILE: frontend\src\app\footer\footer.component.html---
 
 <footer class="bg-gray-800 text-white py-4 mt-8">
@@ -1196,18 +1317,17 @@ export class HeaderComponent {
   <div *ngFor="let line of invoiceLines; let i = index" class="flex items-center space-x-4">
     <input type="text" [(ngModel)]="line.description" placeholder="Description" class="flex-grow border border-gray-300 rounded-md px-3 py-2">
     <input type="number" [(ngModel)]="line.count" placeholder="Count" class="w-24 border border-gray-300 rounded-md px-3 py-2">
-    <input type="number" [(ngModel)]="line.unit_cost" placeholder="Unit Cost" class="w-32 border border-gray-300 rounded-md px-3 py-2">
-    <button (click)="deleteLine(i)" class="text-red-500 hover:text-red-700 focus:outline-none">
+    <input type="number" [(ngModel)]="line.unit_cost" placeholder="Unit Cost" class="w-32 border border-gray-300 rounded-md px-3 py-2" (ngModelChange)="calculateLineAmount(i)">
+    <button (click)="deleteLine(i); $event.stopPropagation()" class="text-red-500 hover:text-red-700 focus:outline-none">
       <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
       </svg>
     </button>
   </div>
-  <button (click)="addLine()" class="bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600 focus:outline-none">
+  <button (click)="addLine(); $event.stopPropagation()" class="bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600 focus:outline-none">
     Add Line
   </button>
 </div>
-
 
 ---END OF FILE: frontend\src\app\invoice-lines\invoice-lines.component.html---
 
@@ -1270,22 +1390,25 @@ export class InvoiceLinesComponent {
   @Output() invoiceLinesChange = new EventEmitter<InvoiceLine[]>();
 
   addLine() {
-    this.invoiceLines.push({
+    const newLine: InvoiceLine = {
       description: '',
       count: 0,
       unit_cost: 0,
       line_amount: 0
-    });
-    this.emitChanges();
+    };
+
+    this.invoiceLines.push(newLine);
+    this.invoiceLinesChange.emit(this.invoiceLines);
   }
 
   deleteLine(index: number) {
     this.invoiceLines.splice(index, 1);
-    this.emitChanges();
+    this.invoiceLinesChange.emit(this.invoiceLines);
   }
 
-  emitChanges() {
-    this.invoiceLinesChange.emit(this.invoiceLines);
+  calculateLineAmount(index: number) {
+    const line = this.invoiceLines[index];
+    line.line_amount = line.count * line.unit_cost;
   }
 }
 
@@ -1384,10 +1507,10 @@ export class InvoiceListComponent {
           </tr>
         </thead>
         <tbody class="bg-white dark:bg-slate-800">
-          <tr *ngFor="let invoice of invoices | paginate: { itemsPerPage: pageSize, currentPage: currentPage }">
+          <tr *ngFor="let invoice of invoices | paginate: { itemsPerPage: pageSize, currentPage: currentPage }" (click)="editInvoice(invoice.id)">
             <td class="border-b border-slate-100 dark:border-slate-700 p-4 pl-8 text-slate-500 dark:text-slate-400">{{ invoice.invoice_number }}</td>
-            <td class="border-b border-slate-100 dark:border-slate-700 p-4 text-slate-500 dark:text-slate-400">{{ invoice.payor?.name }}</td>
-            <td class="border-b border-slate-100 dark:border-slate-700 p-4 text-slate-500 dark:text-slate-400">{{ invoice.payee?.name }}</td>
+            <td class="border-b border-slate-100 dark:border-slate-700 p-4 text-slate-500 dark:text-slate-400">{{ invoice.payor.name }}</td>
+            <td class="border-b border-slate-100 dark:border-slate-700 p-4 text-slate-500 dark:text-slate-400">{{ invoice.payee.name }}</td>
             <td class="border-b border-slate-100 dark:border-slate-700 p-4 text-slate-500 dark:text-slate-400">{{ invoice.invoice_date | date }}</td>
             <td class="border-b border-slate-100 dark:border-slate-700 p-4 text-slate-500 dark:text-slate-400">{{ invoice.amount }}</td>
             <td class="border-b border-slate-100 dark:border-slate-700 p-4 pr-8 text-slate-500 dark:text-slate-400">{{ invoice.tax }}</td>
@@ -1452,6 +1575,7 @@ import { CommonModule } from '@angular/common';
 import { InvoiceService } from '../services/invoice.service';
 import { Invoice } from '../models/invoice.model';
 import { NgxPaginationModule } from 'ngx-pagination';
+import { Router } from '@angular/router';
 
 @Component({
   selector: 'app-invoices',
@@ -1465,7 +1589,7 @@ export class InvoicesComponent implements OnInit {
   currentPage = 1;
   pageSize = 10;  
 
-  constructor(private invoiceService: InvoiceService) { }
+  constructor(private invoiceService: InvoiceService, private router: Router) { }
 
   ngOnInit(): void {
     console.log('in invoice list')
@@ -1476,6 +1600,11 @@ export class InvoicesComponent implements OnInit {
     this.invoiceService.getInvoices()
       .subscribe(invoices => this.invoices = invoices);
   }
+
+  editInvoice(invoiceId: number): void {
+    this.router.navigate(['/new-invoice', invoiceId]);
+  }
+
 }
 
 ---END OF FILE: frontend\src\app\invoices\invoices.component.ts---
@@ -1489,7 +1618,7 @@ export class InvoicesComponent implements OnInit {
       <li><a routerLink="/invoices" class="text-white hover:text-gray-200 font-semibold transition duration-300">Invoices</a></li>
       <li><a routerLink="/new-invoice" class="text-white hover:text-gray-200 font-semibold transition duration-300">New Invoice</a></li>
       <li><a routerLink="/upload-invoice" class="text-white hover:text-gray-200 font-semibold transition duration-300">Upload</a></li>
-      <li><a routerLink="/payors" class="text-white hover:text-gray-200 font-semibold transition duration-300">Payors</a></li>
+      <li><a routerLink="/contacts" class="text-white hover:text-gray-200 font-semibold transition duration-300">Contacts</a></li>
     </ul>
   </nav>
 
@@ -1581,6 +1710,7 @@ export class MenuComponent {
 import { Contact } from "./contact.model";
 
 export interface Invoice {
+  id: number;
   invoice_number: string;
   invoice_date: Date;
   amount: number;
@@ -1651,7 +1781,7 @@ export interface InvoiceLine {
                 </div>
               </div>
           </div>
-          <div class="pt-5">
+          <div class="pt-5" >
             <div class="flex justify-end">
               <button type="button" (click)="onCancel()"
                       class="bg-white py-2 px-4 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
@@ -1714,7 +1844,7 @@ describe('NewInvoiceFormComponent', () => {
 ---START OF FILE: frontend\src\app\new-invoice-form\new-invoice-form.component.ts---
 
 import { Component, OnInit } from '@angular/core';
-import { Router } from '@angular/router';
+import { ActivatedRoute, Router } from '@angular/router';
 import { InvoiceService } from '../services/invoice.service';
 import { Invoice, InvoiceLine } from '../models/invoice.model';
 import { ContactFormSectionComponent } from '../contact-form-section/contact-form-section.component';
@@ -1728,8 +1858,11 @@ import { FormsModule } from '@angular/forms';
   standalone: true,
   imports: [ ContactFormSectionComponent, InvoiceLinesComponent, FormsModule ]
 })
+
 export class NewInvoiceFormComponent implements OnInit {
+  invoiceId: number | null = null;
   invoice: Invoice = {
+    id: -1,    
     invoice_number: '',
     invoice_date: new Date(),
     amount: 0,
@@ -1757,23 +1890,52 @@ export class NewInvoiceFormComponent implements OnInit {
     invoice_lines: []
   };
 
-  constructor(private invoiceService: InvoiceService, private router: Router) { }
+  constructor(private invoiceService: InvoiceService, private route: ActivatedRoute, private router: Router) { }
 
   ngOnInit(): void {
+    this.route.paramMap.subscribe(params => {
+      this.invoiceId = Number(params.get('id'));
+      if (this.invoiceId) {
+        this.loadInvoice();
+      }
+    });
   }
 
+  loadInvoice(): void {
+    if (this.invoiceId) {
+      this.invoiceService.getInvoice(this.invoiceId).subscribe(invoice => {
+        this.invoice = invoice;
+      });
+    }
+  }  
+
   onSubmit(): void {
-    this.invoiceService.createInvoice(this.invoice)
-      .subscribe(
+    if (this.invoice.id === -1) {
+      this.invoiceService.createInvoice(this.invoice).subscribe(
         response => {
           console.log('Invoice created successfully:', response);
           this.router.navigate(['/invoices']);
         },
         error => {
           console.error('Error creating invoice:', error);
-        }
+        }        
       );
+    } else {
+      this.invoiceService.updateInvoice(this.invoice).subscribe(
+        response => {
+          console.log('Invoice created successfully:', response);
+          this.router.navigate(['/invoices']);
+        },
+        error => {
+          console.error('Error updating invoice:', error);
+        }        
+      );
+    }
   }
+
+  addNewLine(newLine: InvoiceLine) {
+    this.invoice.invoice_lines.push(newLine);
+  }  
 
   onCancel(): void {
     this.router.navigate(['/invoices']);
@@ -1870,6 +2032,14 @@ export class InvoiceService {
   getInvoices(): Observable<Invoice[]> {
     return this.http.get<Invoice[]>(`${this.apiUrl}/invoices`);
   }
+
+  getInvoice(invoiceId: number): Observable<Invoice> {
+    return this.http.get<Invoice>(`${this.apiUrl}/invoices/${invoiceId}`);
+  }
+  
+  updateInvoice(invoice: Invoice): Observable<Invoice> {
+    return this.http.post<Invoice>(`${this.apiUrl}/invoices`, invoice);
+  }  
 
   createInvoice(invoice: Invoice): Observable<Invoice> {
     return this.http.post<Invoice>(`${this.apiUrl}/invoices`, invoice);

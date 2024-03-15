@@ -15,10 +15,10 @@
           </tr>
         </thead>
         <tbody class="bg-white dark:bg-slate-800">
-          <tr *ngFor="let invoice of invoices | paginate: { itemsPerPage: pageSize, currentPage: currentPage }">
+          <tr *ngFor="let invoice of invoices | paginate: { itemsPerPage: pageSize, currentPage: currentPage }" (click)="editInvoice(invoice.id)">
             <td class="border-b border-slate-100 dark:border-slate-700 p-4 pl-8 text-slate-500 dark:text-slate-400">{{ invoice.invoice_number }}</td>
-            <td class="border-b border-slate-100 dark:border-slate-700 p-4 text-slate-500 dark:text-slate-400">{{ invoice.payor?.name }}</td>
-            <td class="border-b border-slate-100 dark:border-slate-700 p-4 text-slate-500 dark:text-slate-400">{{ invoice.payee?.name }}</td>
+            <td class="border-b border-slate-100 dark:border-slate-700 p-4 text-slate-500 dark:text-slate-400">{{ invoice.payor.name }}</td>
+            <td class="border-b border-slate-100 dark:border-slate-700 p-4 text-slate-500 dark:text-slate-400">{{ invoice.payee.name }}</td>
             <td class="border-b border-slate-100 dark:border-slate-700 p-4 text-slate-500 dark:text-slate-400">{{ invoice.invoice_date | date }}</td>
             <td class="border-b border-slate-100 dark:border-slate-700 p-4 text-slate-500 dark:text-slate-400">{{ invoice.amount }}</td>
             <td class="border-b border-slate-100 dark:border-slate-700 p-4 pr-8 text-slate-500 dark:text-slate-400">{{ invoice.tax }}</td>
