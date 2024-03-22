@@ -27,8 +27,7 @@ app = FastAPI()
 
 # CORS configuration
 origins = [
-    "http://localhost",
-    "http://localhost:4200",
+    os.getenv("FRONTEND_URL")
 ]
 
 app.add_middleware(
@@ -224,7 +223,7 @@ def create_invoice(db: Session, invoice_data: dict, image_data: bytes = None):
     # Extract payor and payee data
     payor_data = invoice_data.pop("payor")
     payee_data = invoice_data.pop("payee")
-    invoice_lines_data = invoice_data.pop("invoice_lines", [])
+    invoice_lines_data = invoice_data.pop("invoice_lines", [])    
     
     # Get or create payor and payee contacts
     payor = get_or_create_contact(db, payor_data)
@@ -237,11 +236,9 @@ def create_invoice(db: Session, invoice_data: dict, image_data: bytes = None):
     # Create invoice
     invoice = Invoice(**invoice_data, invoice_date=invoice_date, payor_id=payor.id, payee_id=payee.id)
     
-
-    
     # Save the uploaded file to the invoice_image field
-    # if image_data:
-    #     invoice.invoice_image = image_data      
+    if image_data:
+        invoice.invoice_image = image_data      
     
     # Create invoice lines
     invoice_lines = []
@@ -251,13 +248,11 @@ def create_invoice(db: Session, invoice_data: dict, image_data: bytes = None):
     
     invoice.invoice_lines = invoice_lines
     
-    print(invoice)    
+    db.add(invoice)
+    db.commit()
+    db.refresh(invoice)
     
-    # db.add(invoice)
-    # db.commit()
-    # db.refresh(invoice)
-    
-    return ''
+    return invoice
 
 @app.post("/upload")
 async def upload_file(file: UploadFile = File(...), db: Session = Depends(get_db)):
@@ -280,14 +275,20 @@ async def upload_file(file: UploadFile = File(...), db: Session = Depends(get_db
 
     if start_index != -1 and end_index != -1:
         json_string = llm_response[start_index:end_index+1]
-        #invoice_data = json.loads(json_string)
+        
         print(json_string)
         
-        # Save invoice data to the database
-        #invoice_dict = create_invoice(db, invoice_data, image_data[0]['data'])
-        # del invoice_dict['invoice_image']
+        invoice_data = json.loads(json_string)                
+        ai_comments = invoice_data.pop("ai_comments")
         
-        response = {} #{ "id": invoice_dict.id }  
+        # if(invoice_data['invoice_number'] or invoice_data['payor'] or invoice_data['payee']):        
+            # Save invoice data to the database
+        invoice_dict = create_invoice(db, invoice_data, image_data[0]['data'])
+        invoiceid = invoice_dict.id
+        # else:
+        #     invoiceid = ''    
+        
+        response = { "id": invoiceid, "ai_comments": ai_comments }  
     else:
         response = {}  # Or any other appropriate default value or error handling    
         

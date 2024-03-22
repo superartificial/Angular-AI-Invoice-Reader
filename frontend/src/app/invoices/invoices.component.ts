@@ -4,13 +4,14 @@ import { InvoiceService } from '../services/invoice.service';
 import { Invoice } from '../models/invoice.model';
 import { NgxPaginationModule } from 'ngx-pagination';
 import { Router } from '@angular/router';
+import { UploadInvoiceComponent } from '../upload-invoice/upload-invoice.component';
 
 @Component({
   selector: 'app-invoices',
   templateUrl: './invoices.component.html',
   styleUrls: ['./invoices.component.scss'],
   standalone: true,
-  imports: [CommonModule, NgxPaginationModule]
+  imports: [CommonModule, NgxPaginationModule, UploadInvoiceComponent]
 })
 export class InvoicesComponent implements OnInit {
   invoices: Invoice[] = [];
