@@ -3,13 +3,13 @@
     <input type="text" [(ngModel)]="line.description" placeholder="Description" class="flex-grow border border-gray-300 rounded-md px-3 py-2">
     <input type="number" [(ngModel)]="line.count" placeholder="Count" class="w-24 border border-gray-300 rounded-md px-3 py-2">
     <input type="number" [(ngModel)]="line.unit_cost" placeholder="Unit Cost" class="w-32 border border-gray-300 rounded-md px-3 py-2" (ngModelChange)="calculateLineAmount(i)">
-    <button (click)="deleteLine(i); $event.stopPropagation()" class="text-red-500 hover:text-red-700 focus:outline-none">
+    <button type="button" (click)="deleteLine(i); $event.stopPropagation()" class="text-red-500 hover:text-red-700 focus:outline-none">
       <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
       </svg>
     </button>
   </div>
-  <button (click)="addLine(); $event.stopPropagation()" class="bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600 focus:outline-none">
+  <button type="button" (click)="addLine(); $event.stopPropagation()" class="bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600 focus:outline-none">
     Add Line
   </button>
 </div>

@@ -1,10 +1,27 @@
 import json
-from fastapi import FastAPI, Depends, HTTPException
+import google.generativeai as genai
+import os
+from fastapi import FastAPI, Depends, HTTPException, UploadFile, File, Response
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
-from database import engine, create_tables, Invoice, InvoiceLine, Contact
-from schemas import InvoiceSchema, InvoiceCreateSchema
+from sqlalchemy import func
+from database import engine, create_tables, Invoice, InvoiceLine, Contact, clear_all
+from schemas import InvoiceSchema, ContactSchema
 from datetime import datetime
+from prompts import input_prompt
+from dotenv import load_dotenv
+from PIL import Image, UnidentifiedImageError
+from db_functions import get_db
+from llm_functions import input_image_details, get_gemini_response
+import io
+from PIL import Image
+
+load_dotenv()
+
+genai.configure(api_key=os.getenv("GOOGLE_API_KEY"))
+
+# Function to load Gemini Pro Vision
+
 
 app = FastAPI()
 
@@ -16,18 +33,11 @@ origins = [
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins,
+ allow_origins = ["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-def get_db():
-    db = Session(autocommit=False, autoflush=False, bind=engine)
-    try:
-        yield db
-    finally:
-        db.close()
 
 @app.on_event("startup")
 def startup_event():
@@ -71,16 +81,12 @@ def import_invoices(db: Session = Depends(get_db)):
 
 @app.post("/clear-data")
 def clear_data(db: Session = Depends(get_db)):
-    db.query(InvoiceLine).delete()
-    db.query(Invoice).delete()
-    db.query(Contact).delete()
+    # db.query(InvoiceLine).delete()
+    # db.query(Invoice).delete()
+    # db.query(Contact).delete()
+    clear_all()    
     db.commit()
     return {"message": "Data cleared successfully"}
-
-@app.get("/invoices", response_model=list[InvoiceSchema])
-def get_invoices(db: Session = Depends(get_db)):
-    invoices = db.query(Invoice).all()
-    return invoices
 
 def get_or_create_contact(db: Session, contact_data: dict):
     contact = db.query(Contact).filter_by(
@@ -162,9 +168,129 @@ def create_or_update_invoice(invoice: InvoiceSchema, db: Session = Depends(get_d
 
     return invoice_db
 
+@app.get("/invoices", response_model=list[InvoiceSchema])
+def get_invoices(db: Session = Depends(get_db)):
+    invoices = db.query(Invoice.id, Invoice.invoice_number, Invoice.invoice_date, Invoice.amount, Invoice.tax,
+                        Invoice.payor_id, Invoice.payee_id).all()
+    return [
+        {
+            "id": invoice.id,
+            "invoice_number": invoice.invoice_number,
+            "invoice_date": invoice.invoice_date,
+            "amount": invoice.amount,
+            "tax": invoice.tax,
+            "payor": db.query(Contact).filter(Contact.id == invoice.payor_id).first(),
+            "payee": db.query(Contact).filter(Contact.id == invoice.payee_id).first(),
+            "invoice_lines": db.query(InvoiceLine).filter(InvoiceLine.invoice_id == invoice.id).all()
+        }
+        for invoice in invoices
+    ]
+    
+@app.get("/invoices/{invoice_id}/image")
+def get_invoice_image(invoice_id: int, db: Session = Depends(get_db)):
+    invoice = db.query(Invoice).filter(Invoice.id == invoice_id).first()
+    if not invoice:
+        raise HTTPException(status_code=404, detail="Invoice not found")
+    
+    return Response(content=invoice.invoice_image, media_type="image/jpg")    
+
+@app.get("/contacts")
+def get_contacts(db: Session = Depends(get_db)):
+    contacts = db.query(
+        Contact,
+        func.count(Invoice.id).filter(Invoice.payee_id == Contact.id).label('payee_invoice_count'),
+        func.count(Invoice.id).filter(Invoice.payor_id == Contact.id).label('payor_invoice_count')
+    ).group_by(Contact.id).all()
+
+    contact_data = []
+    for contact, payee_count, payor_count in contacts:
+        contact_dict = {
+            'contact': contact,
+            'payee_invoice_count': payee_count,
+            'payor_invoice_count': payor_count
+        }
+        contact_data.append(contact_dict)
+
+    return contact_data
+
 @app.get("/invoices/{invoice_id}", response_model=InvoiceSchema)
 def get_invoice(invoice_id: int, db: Session = Depends(get_db)):
     invoice = db.query(Invoice).filter(Invoice.id == invoice_id).first()
     if not invoice:
         raise HTTPException(status_code=404, detail="Invoice not found")
     return invoice
+
+def create_invoice(db: Session, invoice_data: dict, image_data: bytes = None):
+    # Extract payor and payee data
+    payor_data = invoice_data.pop("payor")
+    payee_data = invoice_data.pop("payee")
+    invoice_lines_data = invoice_data.pop("invoice_lines", [])
+    
+    # Get or create payor and payee contacts
+    payor = get_or_create_contact(db, payor_data)
+    payee = get_or_create_contact(db, payee_data)
+    
+    # Convert invoice_date string to date object
+    invoice_date_str = invoice_data.pop("invoice_date")
+    invoice_date = datetime.strptime(invoice_date_str, "%Y-%m-%d").date()
+    
+    # Create invoice
+    invoice = Invoice(**invoice_data, invoice_date=invoice_date, payor_id=payor.id, payee_id=payee.id)
+    
+
+    
+    # Save the uploaded file to the invoice_image field
+    # if image_data:
+    #     invoice.invoice_image = image_data      
+    
+    # Create invoice lines
+    invoice_lines = []
+    for line_data in invoice_lines_data:
+        invoice_line = InvoiceLine(**line_data)
+        invoice_lines.append(invoice_line)
+    
+    invoice.invoice_lines = invoice_lines
+    
+    print(invoice)    
+    
+    # db.add(invoice)
+    # db.commit()
+    # db.refresh(invoice)
+    
+    return ''
+
+@app.post("/upload")
+async def upload_file(file: UploadFile = File(...), db: Session = Depends(get_db)):
+    '''
+    Uploads an invoice file, uses an llm to convert to json, is successful saves in db
+    '''
+    print('upload')
+    temp_upload_dir = "temp_upload"
+    os.makedirs(temp_upload_dir, exist_ok=True)
+    
+    # file_path = os.path.join(temp_upload_dir, file.filename)
+    # with open(file_path, "wb") as buffer:
+    #     buffer.write(file.read())
+    
+    image_data = input_image_details(file)
+    llm_response = get_gemini_response(input_prompt, image_data, "")
+    
+    start_index = llm_response.find('{')
+    end_index = llm_response.rfind('}')
+
+    if start_index != -1 and end_index != -1:
+        json_string = llm_response[start_index:end_index+1]
+        #invoice_data = json.loads(json_string)
+        print(json_string)
+        
+        # Save invoice data to the database
+        #invoice_dict = create_invoice(db, invoice_data, image_data[0]['data'])
+        # del invoice_dict['invoice_image']
+        
+        response = {} #{ "id": invoice_dict.id }  
+    else:
+        response = {}  # Or any other appropriate default value or error handling    
+        
+    return response
+        
+        

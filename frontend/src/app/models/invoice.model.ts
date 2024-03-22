@@ -9,6 +9,7 @@ export interface Invoice {
   payor: Contact;
   payee: Contact;
   invoice_lines: InvoiceLine[];
+  invoice_image: string;  
 }
 
 export interface InvoiceLine {

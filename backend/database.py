@@ -1,4 +1,4 @@
-from sqlalchemy import create_engine, Column, Integer, String, Float, Date, ForeignKey
+from sqlalchemy import create_engine, Column, Integer, String, Float, Date, ForeignKey, LargeBinary
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship
 
@@ -46,6 +46,12 @@ class Invoice(Base):
     invoice_lines = relationship("InvoiceLine", backref="invoice")
     payor = relationship("Contact", foreign_keys=[payor_id])
     payee = relationship("Contact", foreign_keys=[payee_id])
+    invoice_image = Column(LargeBinary, nullable=True)    
 
 def create_tables():
+    Base.metadata.create_all(bind=engine)
+    
+def clear_all():
+    Base.metadata.drop_all(bind=engine)
+    # Recreate the tables
     Base.metadata.create_all(bind=engine)

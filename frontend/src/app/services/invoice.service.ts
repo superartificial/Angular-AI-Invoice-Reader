@@ -26,4 +26,9 @@ export class InvoiceService {
   createInvoice(invoice: Invoice): Observable<Invoice> {
     return this.http.post<Invoice>(`${this.apiUrl}/invoices`, invoice);
   }
+
+  getInvoiceImage(invoiceId: number): Observable<Blob> {
+    return this.http.get(`${this.apiUrl}/invoices/${invoiceId}/image`, { responseType: 'blob' });
+  }
+
 }
