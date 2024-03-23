@@ -16,18 +16,23 @@ from llm_functions import input_image_details, get_gemini_response
 import io
 from PIL import Image
 
+from fastapi.staticfiles import StaticFiles
+
 load_dotenv()
 
 genai.configure(api_key=os.getenv("GOOGLE_API_KEY"))
 
-# Function to load Gemini Pro Vision
-
-
 app = FastAPI()
+
+app.mount("/", StaticFiles(directory="../frontend", html=True), name="frontend")
 
 # CORS configuration
 origins = [
-    os.getenv("FRONTEND_URL")
+    
+    "http://localhost",
+    "http://localhost:7860",
+    
+    # os.getenv("FRONTEND_URL")
 ]
 
 app.add_middleware(
