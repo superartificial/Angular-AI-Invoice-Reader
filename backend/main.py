@@ -24,15 +24,11 @@ genai.configure(api_key=os.getenv("GOOGLE_API_KEY"))
 
 app = FastAPI()
 
-app.mount("/", StaticFiles(directory="../frontend", html=True), name="frontend")
+# app.mount("/", StaticFiles(directory="static", html=True), name="frontend")
 
 # CORS configuration
 origins = [
-    
-    "http://localhost",
-    "http://localhost:7860",
-    
-    # os.getenv("FRONTEND_URL")
+    os.getenv("FRONTEND_URL")
 ]
 
 app.add_middleware(
@@ -47,7 +43,7 @@ app.add_middleware(
 def startup_event():
     create_tables()
 
-@app.post("/import-invoices")
+@app.get("/import-invoices")
 def import_invoices(db: Session = Depends(get_db)):
     with open("invoices.json", "r") as file:
         invoices_data = json.load(file)
