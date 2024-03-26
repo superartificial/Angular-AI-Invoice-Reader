@@ -5,16 +5,13 @@ from fastapi import FastAPI, Depends, HTTPException, UploadFile, File, Response
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from sqlalchemy import func
-from database import engine, create_tables, Invoice, InvoiceLine, Contact, clear_all
-from schemas import InvoiceSchema, ContactSchema
+from database import Invoice, InvoiceLine, Contact, clear_all
+from schemas import InvoiceSchema
 from datetime import datetime
 from prompts import input_prompt
 from dotenv import load_dotenv
-from PIL import Image, UnidentifiedImageError
-from db_functions import get_db
-from llm_functions import input_image_details, get_gemini_response
-import io
-from PIL import Image
+from db.db_setup import get_db
+from api.utils.llm_functions import input_image_details, get_gemini_response
 
 from fastapi.staticfiles import StaticFiles
 
@@ -23,8 +20,6 @@ load_dotenv()
 genai.configure(api_key=os.getenv("GOOGLE_API_KEY"))
 
 app = FastAPI()
-
-# app.mount("/", StaticFiles(directory="static", html=True), name="frontend")
 
 # CORS configuration
 origins = [
@@ -38,10 +33,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-@app.on_event("startup")
-def startup_event():
-    create_tables()
 
 @app.get("/import-invoices")
 def import_invoices(db: Session = Depends(get_db)):
