@@ -16,5 +16,8 @@
     "env": {
       "PYTHON_VERSION": "3.8"
     }
-  }
+  },
+  "env": {
+    "ANGULAR_APP_URL": "https://angular-ai-invoice-reader-d7s8.vercel.app/"
+  }  
 }

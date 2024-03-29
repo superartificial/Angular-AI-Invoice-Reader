@@ -24,7 +24,9 @@ app = FastAPI()
 
 # CORS configuration
 origins = [
-    os.getenv("FRONTEND_URL")
+    os.environ.get("ANGULAR_APP_URL"),
+    "http://localhost",
+    "http://localhost:4200",
 ]
 
 app.add_middleware(
