@@ -267,14 +267,15 @@ def create_invoice(db: Session, invoice_data: dict, image_data: bytes = None):
     
     return invoice
 
+
 @app.post("/upload")
 async def upload_file(file: UploadFile = File(...), db: Session = Depends(get_db)):
     '''
     Uploads an invoice file, uses an llm to convert to json, is successful saves in db
     '''
     print('upload')
-    temp_upload_dir = "temp_upload"
-    os.makedirs(temp_upload_dir, exist_ok=True)
+    # temp_upload_dir = "temp_upload"
+    # os.makedirs(temp_upload_dir, exist_ok=True)
     
     # file_path = os.path.join(temp_upload_dir, file.filename)
     # with open(file_path, "wb") as buffer:
