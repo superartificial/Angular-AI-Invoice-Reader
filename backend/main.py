@@ -24,8 +24,8 @@ app = FastAPI()
 
 # CORS configuration
 origins = [
-    "https://angular-ai-invoice-reader-b77fari78-clem-whites-projects.vercel.app/",
-    "https://angular-ai-invoice-reader-b77fari78-clem-whites-projects.vercel.app/browser/",
+    "https://angular-ai-invoice-reader-d7s8.vercel.app",
+    "https://angular-ai-invoice-reader-d7s8.vercel.app/browser",
     "http://localhost",
     "http://localhost:4200",
 ]
