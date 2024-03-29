@@ -24,7 +24,7 @@ app = FastAPI()
 
 # CORS configuration
 origins = [
-    os.environ.get("ANGULAR_APP_URL"),
+    "https://angular-ai-invoice-reader-d7s8.vercel.app",
     "http://localhost",
     "http://localhost:4200",
 ]
