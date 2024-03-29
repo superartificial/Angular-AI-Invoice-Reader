@@ -14,11 +14,11 @@ export class ContactFormSectionComponent {
   @Input() identifier: string = '';
   @Input() contact: Contact = {
     name: '',
-    line1: '',
-    line2: '',
-    city: '',
-    country: '',
-    postcode: '',
+    address_line1: '',
+    address_line2: '',
+    address_city: '',
+    address_country: '',
+    address_postcode: '',
     phone_number: '',
     email: ''
   };

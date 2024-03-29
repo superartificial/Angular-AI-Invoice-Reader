@@ -1,10 +1,10 @@
   export interface Contact {
     name: string;
-    line1: string;
-    line2: string;
-    city: string;
-    country: string;
-    postcode: string;
+    address_line1: string;
+    address_line2: string;
+    address_city: string;
+    address_country: string;
+    address_postcode: string;
     phone_number: string;
     email: string;
   }

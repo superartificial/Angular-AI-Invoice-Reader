@@ -1,0 +1,2375 @@
+
+
+---START OF FILE: compress.py---
+
+import bz2
+import base64
+
+def compress_text_file(input_file, output_file):
+    """
+    Compresses a text file using bz2 compression and encodes the compressed data in base64.
+    
+    Args:
+        input_file (str): Path to the input text file to be compressed.
+        output_file (str): Path to the output file where the compressed data will be written.
+    """
+    with open(input_file, 'rb') as f_in:
+        data = f_in.read()
+
+    compressed_data = bz2.compress(data)
+    base64_compressed_data = base64.b64encode(compressed_data).decode('utf-8')
+
+    with open(output_file, 'w', encoding='utf-8') as f_out:
+        f_out.write(base64_compressed_data)
+
+if __name__ == '__main__':
+    input_file = 'fullsource.txt'
+    output_file = 'fullsource_compressed.txt'
+    compress_text_file(input_file, output_file)
+
+---END OF FILE: compress.py---
+
+
+
+---START OF FILE: concat.py---
+
+import os
+import glob
+from tqdm import tqdm
+import fnmatch
+
+def concatenate_files(start_dir):
+    output_file_prefix = 'fullsource'
+    output_file_ext = '.txt'
+    ignored_files = []
+    ignored_dirs = []
+    output_file_index = 1
+    output_file_content = ''
+    max_file_size = 75000  # 75KB in bytes
+
+    total_files = sum(len(files) for _, _, files in os.walk(start_dir))
+    processed_files = 0
+
+    with tqdm(total=total_files, unit='file') as pbar:
+        for dirpath, dirnames, filenames in os.walk(start_dir):
+            # Check if .gitignore file exists in the current directory
+            gitignore_path = os.path.join(dirpath, '.gitignore')
+            if os.path.isfile(gitignore_path):
+                with open(gitignore_path, 'r') as f:
+                    patterns = [line.strip() for line in f if line.strip() and not line.strip().startswith('#')]
+                    dir_ignored_dirs = [os.path.normpath(os.path.join(dirpath, pattern)) for pattern in patterns if pattern.endswith('/')]
+                    file_ignored_patterns = [pattern for pattern in patterns if not pattern.endswith('/')]
+                    dir_ignored_files = [os.path.normpath(os.path.join(dirpath, filename)) for pattern in file_ignored_patterns for filename in filenames if fnmatch.fnmatch(filename, pattern)]
+                    ignored_dirs.extend(dir_ignored_dirs)
+                    ignored_files.extend(dir_ignored_files)
+
+            # Remove directories that match gitignore patterns
+            dirnames[:] = [d for d in dirnames if os.path.normpath(os.path.join(dirpath, d)) not in ignored_dirs]
+
+            for filename in filenames:
+                file_path = os.path.normpath(os.path.join(dirpath, filename))
+                if file_path not in ignored_files:
+                    relative_path = os.path.relpath(file_path, start_dir)
+                    _, ext = os.path.splitext(filename)
+
+                    # Only include text-based file types
+                    if ext.lower() in ['.txt', '.html', '.css', '.py', '.js', '.scss', '.ts', '.json']:
+                        try:
+                            with open(file_path, 'r', encoding='utf-8') as infile:
+                                file_content = f'\n\n---START OF FILE: {relative_path}---\n\n{infile.read()}\n\n---END OF FILE: {relative_path}---\n\n'
+                                file_content_size = len(file_content.encode('utf-8'))
+
+                                if len(output_file_content) + file_content_size > max_file_size:
+                                    output_file = f'{output_file_prefix}_{output_file_index}{output_file_ext}'
+                                    with open(output_file, 'w', encoding='utf-8') as outfile:
+                                        outfile.write(output_file_content)
+                                    output_file_index += 1
+                                    output_file_content = file_content
+                                else:
+                                    output_file_content += file_content
+
+                            processed_files += 1
+                            pbar.update(1)
+                        except UnicodeDecodeError:
+                            print(f'Warning: Could not decode {file_path}. Skipping file.')
+
+        # Write the remaining content to the last output file
+        if output_file_content:
+            output_file = f'{output_file_prefix}_{output_file_index}{output_file_ext}'
+            with open(output_file, 'w', encoding='utf-8') as outfile:
+                outfile.write(output_file_content)
+
+    print(f'All files have been concatenated into {output_file_prefix}_*.{output_file_ext}')
+
+if __name__ == '__main__':
+    start_dir = os.getcwd()  # Change this to the desired starting directory
+    concatenate_files(start_dir)
+
+---END OF FILE: concat.py---
+
+
+
+---START OF FILE: push_to_space.py---
+
+from huggingface_hub import HfApi
+
+api = HfApi()
+
+username = "ClemAotearoa"
+space_name = "InvoiceReaderDemo"
+
+space_sdk_version = "0.13.2"
+
+api.upload_folder(
+    folder_path=".",
+    path_in_repo="",
+    repo_id=f"{username}/{space_name}",
+    repo_type="space",
+
+)
+
+---END OF FILE: push_to_space.py---
+
+
+
+---START OF FILE: .vscode\tasks.json---
+
+{
+    "version": "2.0.0",
+    "tasks": [
+      {
+        "label": "Start Frontend and Backend",
+        "dependsOn": [
+          "Start Frontend",
+          "Start Backend"
+        ],
+        "problemMatcher": []
+      },
+      {
+        "label": "Start Frontend",
+        "type": "shell",
+        "command": "ng serve",
+        "options": {
+          "cwd": "${workspaceFolder}/frontend"
+        },
+        "presentation": {
+          "reveal": "always",
+          "panel": "dedicated"
+        },
+        "problemMatcher": []
+      },
+      {
+        "label": "Start Backend",
+        "type": "shell",
+        "command": "uvicorn main:app --reload",
+        "options": {
+          "cwd": "${workspaceFolder}/backend"
+        },
+        "presentation": {
+          "reveal": "always",
+          "panel": "dedicated"
+        },
+        "problemMatcher": []
+      }
+    ]
+  }
+
+---END OF FILE: .vscode\tasks.json---
+
+
+
+---START OF FILE: backend\invoices.json---
+
+[
+  {
+    "invoice_number": "INV-2023-0023",
+    "invoice_date": "2023-04-15",
+    "amount": 1250.75,
+    "tax": 125.08,
+    "invoice_lines": [
+      {
+        "description": "Website Design",
+        "count": 1,
+        "unit_cost": 750.00,
+        "line_amount": 750.00
+      },
+      {
+        "description": "Website Development",
+        "count": 1,
+        "unit_cost": 500.75,
+        "line_amount": 500.75
+      }
+    ],
+    "payor": {
+      "name": "Acme Inc.",
+      "address_line1": "123 Main St",
+      "address_line2": null,
+      "address_city": "Anytown",
+      "address_country": "USA",
+      "address_postcode": "12345",
+      "phone_number": "(123) 456-7890",
+      "email": "info@acmeinc.com"
+    },
+    "payee": {
+      "name": "Web Design Services Ltd.",
+      "address_line1": "456 Elm St",
+      "address_line2": null,
+      "address_city": "Othertown",
+      "address_country": "USA",
+      "address_postcode": "54321",
+      "phone_number": "(987) 654-3210",
+      "email": "billing@webdesignservices.com"
+    }
+  },
+  {
+    "invoice_number": "ABC0001",
+    "invoice_date": "2023-04-10",
+    "amount": 650.00,
+    "tax": 65.00,
+    "invoice_lines": [
+      {
+        "description": "Gardening Services - April 2023",
+        "count": 1,
+        "unit_cost": 650.00,
+        "line_amount": 650.00
+      }
+    ],
+    "payor": {
+      "name": "Green Thumb Gardens",
+      "address_line1": "789 Oak St",
+      "address_line2": null,
+      "address_city": "Gardenville",
+      "address_country": "USA",
+      "address_postcode": "54321",
+      "phone_number": "(987) 654-3210",
+      "email": "info@greenthumbgardens.com"
+    },
+    "payee": {
+      "name": "John Smith",
+      "address_line1": "123 Maple Ave",
+      "address_line2": null,
+      "address_city": "Anytown",
+      "address_country": "USA",
+      "address_postcode": "12345",
+      "phone_number": "(123) 456-7890",
+      "email": "john.smith@email.com"
+    }
+  },
+  {
+    "invoice_number": "XYZ9999",
+    "invoice_date": "2023-04-20",
+    "amount": 2500.00,
+    "tax": 250.00,
+    "invoice_lines": [
+      {
+        "description": "Legal Services - Consultation",
+        "count": 5,
+        "unit_cost": 300.00,
+        "line_amount": 1500.00
+      },
+      {
+        "description": "Legal Services - Document Review",
+        "count": 2,
+        "unit_cost": 500.00,
+        "line_amount": 1000.00
+      }
+    ],
+    "payor": {
+      "name": "ABC Corporation",
+      "address_line1": "789 Corporate Blvd",
+      "address_line2": "Suite 100",
+      "address_city": "Businesstown",
+      "address_country": "USA",
+      "address_postcode": "54321",
+      "phone_number": "(987) 654-3210",
+      "email": "accounts@abccorp.com"
+    },
+    "payee": {
+      "name": "Law Firm LLP",
+      "address_line1": "456 Legal Ln",
+      "address_line2": null,
+      "address_city": "Justiceville",
+      "address_country": "USA",
+      "address_postcode": "12345",
+      "phone_number": "(123) 456-7890",
+      "email": "billing@lawfirmllp.com"
+    }
+  },
+  {
+    "invoice_number": "CAFE-001",
+    "invoice_date": "2023-04-18",
+    "amount": 178.50,
+    "tax": 17.85,
+    "invoice_lines": [
+      {
+        "description": "Coffee Beans - Arabica",
+        "count": 10,
+        "unit_cost": 12.50,
+        "line_amount": 125.00
+      },
+      {
+        "description": "Coffee Filters - Large",
+        "count": 5,
+        "unit_cost": 2.50,
+        "line_amount": 12.50
+      },
+      {
+        "description": "Milk - Whole",
+        "count": 15,
+        "unit_cost": 2.00,
+        "line_amount": 30.00
+      },
+      {
+        "description": "Sugar - White",
+        "count": 5,
+        "unit_cost": 2.20,
+        "line_amount": 11.00
+      }
+    ],
+    "payor": {
+      "name": "Cafe on the Corner",
+      "address_line1": "123 Main St",
+      "address_line2": null,
+      "address_city": "Anytown",
+      "address_country": "USA",
+      "address_postcode": "12345",
+      "phone_number": "(123) 456-7890",
+      "email": "orders@cafeonthecorner.com"
+    },
+    "payee": {
+      "name": "Coffee Supplies Co.",
+      "address_line1": "456 Roast Rd",
+      "address_line2": null,
+      "address_city": "Brewville",
+      "address_country": "USA",
+      "address_postcode": "54321",
+      "phone_number": "(987) 654-3210",
+      "email": "sales@coffeesupplies.com"
+    }
+  },
+  {
+    "invoice_number": "STUDIO-2023-04-01",
+    "invoice_date": "2023-04-01",
+    "amount": 1500.00,
+    "tax": 150.00,
+    "invoice_lines": [
+      {
+        "description": "Recording Studio - Full Day",
+        "count": 1,
+        "unit_cost": 1000.00,
+        "line_amount": 1000.00
+      },
+      {
+        "description": "Sound Engineer",
+        "count": 1,
+        "unit_cost": 500.00,
+        "line_amount": 500.00
+      }
+    ],
+    "payor": {
+      "name": "The Band",
+      "address_line1": "789 Melody Ln",
+      "address_line2": null,
+      "address_city": "Musictown",
+      "address_country": "USA",
+      "address_postcode": "54321",
+      "phone_number": "(987) 654-3210",
+      "email": "info@theband.com"
+    },
+    "payee": {
+      "name": "Sound Wave Studios",
+      "address_line1": "456 Decibel Dr",
+      "address_line2": null,
+      "address_city": "Audioville",
+      "address_country": "USA",
+      "address_postcode": "12345",
+      "phone_number": "(123) 456-7890",
+      "email": "bookings@soundwavestudios.com"
+    }
+  },
+  {
+    "invoice_number": "PLUMB-123",
+    "invoice_date": "2023-04-12",
+    "amount": 550.00,
+    "tax": 55.00,
+    "invoice_lines": [
+      {
+        "description": "Plumbing Services - Labor",
+        "count": 4,
+        "unit_cost": 100.00,
+        "line_amount": 400.00
+      },
+      {
+        "description": "Plumbing Supplies",
+        "count": 1,
+        "unit_cost": 150.00,
+        "line_amount": 150.00
+      }
+    ],
+    "payor": {
+      "name": "ABC Apartments",
+      "address_line1": "789 Residence Rd",
+      "address_line2": null,
+      "address_city": "Housingville",
+      "address_country": "USA",
+      "address_postcode": "54321",
+      "phone_number": "(987) 654-3210",
+      "email": "maintenance@abcapartments.com"
+    },
+    "payee": {
+      "name": "Plumbing Pros",
+      "address_line1": "456 Pipe Ln",
+      "address_line2": null,
+      "address_city": "Plumbington",
+      "address_country": "USA",
+      "address_postcode": "12345",
+      "phone_number": "(123) 456-7890",
+      "email": "service@plumbingpros.com"
+    }
+  },
+  {
+    "invoice_number": "EVENT-2023-04-15",
+    "invoice_date": "2023-04-15",
+    "amount": 2250.00,
+    "tax": 225.00,
+    "invoice_lines": [
+      {
+        "description": "Event Venue Rental",
+        "count": 1,
+        "unit_cost": 1500.00,
+        "line_amount": 1500.00
+      },
+      {
+        "description": "Catering Services",
+        "count": 1,
+        "unit_cost": 750.00,
+        "line_amount": 750.00
+      }
+    ],
+    "payor": {
+      "name": "XYZ Corporation",
+      "address_line1": "789 Business Blvd",
+      "address_line2": "Suite 200",
+      "address_city": "Corporateville",
+      "address_country": "USA",
+      "address_postcode": "54321",
+      "phone_number": "(987) 654-3210",
+      "email": "events@xyzcorp.com"
+    },
+    "payee": {
+      "name": "Premier Event Solutions",
+      "address_line1": "456 Celebration Rd",
+      "address_line2": null,
+      "address_city": "Eventburg",
+      "address_country": "USA",
+      "address_postcode": "12345",
+      "phone_number": "(123) 456-7890",
+      "email": "info@premiereventsolutions.com"
+    }
+  },
+  {
+    "invoice_number": "TRAVEL-2023-04-20",
+    "invoice_date": "2023-04-20",
+    "amount": 1200.00,
+    "tax": 120.00,
+    "invoice_lines": [
+      {
+        "description": "Flights - Round Trip",
+        "count": 2,
+        "unit_cost": 400.00,
+        "line_amount": 800.00
+      },
+      {
+        "description": "Hotel Accommodation",
+        "count": 2,
+        "unit_cost": 200.00,
+        "line_amount": 400.00
+      }
+    ],
+    "payor": {
+      "name": "ABC Consulting",
+      "address_line1": "789 Corporate Dr",
+      "address_line2": null,
+      "address_city": "Businesstown",
+      "address_country": "USA",
+      "address_postcode": "54321",
+      "phone_number": "(987) 654-3210",
+      "email": "travel@abcconsulting.com"
+    },
+    "payee": {
+      "name": "Globe Trotters Travel Agency",
+      "address_line1": "456 Adventure Ave",
+      "address_line2": null,
+      "address_city": "Travelville",
+      "address_country": "USA",
+      "address_postcode": "12345",
+      "phone_number": "(123) 456-7890",
+      "email": "bookings@globetrotterstravel.com"
+    }
+  },
+  {
+    "invoice_number": "TECH-2023-04-25",
+    "invoice_date": "2023-04-25",
+    "amount": 3500.00,
+    "tax": 350.00,
+    "invoice_lines": [
+      {
+        "description": "Server Hardware",
+        "count": 1,
+        "unit_cost": 2500.00,
+        "line_amount": 2500.00
+      },
+      {
+        "description": "Network Switches",
+        "count": 2,
+        "unit_cost": 500.00,
+        "line_amount": 1000.00
+      }
+    ],
+    "payor": {
+      "name": "XYZ Technologies",
+      "address_line1": "789 Silicon St",
+      "address_line2": null,
+      "address_city": "Techville",
+      "address_country": "USA",
+      "address_postcode": "54321",
+      "phone_number": "(987) 654-3210",
+      "email": "purchasing@xyztechnologies.com"
+    },
+    "payee": {
+      "name": "Tech Gear Solutions",
+      "address_line1": "456 Circuit Rd",
+      "address_line2": null,
+      "address_city": "Electronville",
+      "address_country": "USA",
+      "address_postcode": "12345",
+      "phone_number": "(123) 456-7890",
+      "email": "sales@techgearsolutions.com"
+    }
+  },
+  {
+    "invoice_number": "CLEAN-2023-04-30",
+    "invoice_date": "2023-04-30",
+    "amount": 450.00,
+    "tax": 45.00,
+    "invoice_lines": [
+      {
+        "description": "Office Cleaning - April 2023",
+        "count": 1,
+        "unit_cost": 450.00,
+        "line_amount": 450.00
+      }
+    ],
+    "payor": {
+      "name": "ABC Company",
+      "address_line1": "789 Commerce Blvd",
+      "address_line2": null,
+      "address_city": "Industrytown",
+      "address_country": "USA",
+      "address_postcode": "54321",
+      "phone_number": "(987) 654-3210",
+      "email": "facilities@abccompany.com"
+    },
+    "payee": {
+      "name": "Spotless Cleaning Services",
+      "address_line1": "456 Broom St",
+      "address_line2": null,
+      "address_city": "Cleanington",
+      "address_country": "USA",
+      "address_postcode": "12345",
+      "phone_number": "(123) 456-7890",
+      "email": "info@spotlesscleaningservices.com"
+    }
+  },
+  {
+    "invoice_number": "GRAPHIC-2023-05-01",
+    "invoice_date": "2023-05-01",
+    "amount": 1750.00,
+    "tax": 175.00,
+    "invoice_lines": [
+      {
+        "description": "Logo Design",
+        "count": 1,
+        "unit_cost": 750.00,
+        "line_amount": 750.00
+      },
+      {
+        "description": "Business Card Design",
+        "count": 1,
+        "unit_cost": 500.00,
+        "line_amount": 500.00
+      },
+      {
+        "description": "Brochure Design",
+        "count": 1,
+        "unit_cost": 500.00,
+        "line_amount": 500.00
+      }
+    ],
+    "payor": {
+      "name": "XYZ Enterprises",
+      "address_line1": "789 Market St",
+      "address_line2": null,
+      "address_city": "Commerceville",
+      "address_country": "USA",
+      "address_postcode": "54321",
+      "phone_number": "(987) 654-3210",
+      "email": "marketing@xyzenterprises.com"
+    },
+    "payee": {
+      "name": "Graphic Design Studio",
+      "address_line1": "456 Creativity Rd",
+      "address_line2": null,
+      "address_city": "Cleanington",
+      "address_country": "USA",
+      "address_postcode": "12345",
+      "phone_number": "(123) 456-7890",
+      "email": "info@spotlesscleaningservices.com"
+    }
+  },
+  
+
+  {
+    "invoice_number": "INV-2023-0023",
+    "invoice_date": "2023-04-15",
+    "amount": 1250.75,
+    "tax": 125.08,
+    "invoice_lines": [
+      {
+        "description": "Website Design",
+        "count": 1,
+        "unit_cost": 750.00,
+        "line_amount": 750.00
+      },
+      {
+        "description": "Website Development",
+        "count": 1,
+        "unit_cost": 500.75,
+        "line_amount": 500.75
+      }
+    ],
+    "payor": {
+      "name": "Acme Inc.",
+      "address_line1": "123 Main St",
+      "address_line2": null,
+      "address_city": "Anytown",
+      "address_country": "USA",
+      "address_postcode": "12345",
+      "phone_number": "(123) 456-7890",
+      "email": "info@acmeinc.com"
+    },
+    "payee": {
+      "name": "Web Design Services Ltd.",
+      "address_line1": "456 Elm St",
+      "address_line2": null,
+      "address_city": "Othertown",
+      "address_country": "USA",
+      "address_postcode": "54321",
+      "phone_number": "(987) 654-3210",
+      "email": "billing@webdesignservices.com"
+    }
+  },
+  {
+    "invoice_number": "ABC0001",
+    "invoice_date": "2023-04-10",
+    "amount": 650.00,
+    "tax": 65.00,
+    "invoice_lines": [
+      {
+        "description": "Gardening Services - April 2023",
+        "count": 1,
+        "unit_cost": 650.00,
+        "line_amount": 650.00
+      }
+    ],
+    "payor": {
+      "name": "Green Thumb Gardens",
+      "address_line1": "789 Oak St",
+      "address_line2": null,
+      "address_city": "Gardenville",
+      "address_country": "USA",
+      "address_postcode": "54321",
+      "phone_number": "(987) 654-3210",
+      "email": "info@greenthumbgardens.com"
+    },
+    "payee": {
+      "name": "John Smith",
+      "address_line1": "123 Maple Ave",
+      "address_line2": null,
+      "address_city": "Anytown",
+      "address_country": "USA",
+      "address_postcode": "12345",
+      "phone_number": "(123) 456-7890",
+      "email": "john.smith@email.com"
+    }
+  },
+  {
+    "invoice_number": "XYZ9999",
+    "invoice_date": "2023-04-20",
+    "amount": 2500.00,
+    "tax": 250.00,
+    "invoice_lines": [
+      {
+        "description": "Legal Services - Consultation",
+        "count": 5,
+        "unit_cost": 300.00,
+        "line_amount": 1500.00
+      },
+      {
+        "description": "Legal Services - Document Review",
+        "count": 2,
+        "unit_cost": 500.00,
+        "line_amount": 1000.00
+      }
+    ],
+    "payor": {
+      "name": "ABC Corporation",
+      "address_line1": "789 Corporate Blvd",
+      "address_line2": "Suite 100",
+      "address_city": "Businesstown",
+      "address_country": "USA",
+      "address_postcode": "54321",
+      "phone_number": "(987) 654-3210",
+      "email": "accounts@abccorp.com"
+    },
+    "payee": {
+      "name": "Law Firm LLP",
+      "address_line1": "456 Legal Ln",
+      "address_line2": null,
+      "address_city": "Justiceville",
+      "address_country": "USA",
+      "address_postcode": "12345",
+      "phone_number": "(123) 456-7890",
+      "email": "billing@lawfirmllp.com"
+    }
+  },
+  {
+    "invoice_number": "CAFE-001",
+    "invoice_date": "2023-04-18",
+    "amount": 178.50,
+    "tax": 17.85,
+    "invoice_lines": [
+      {
+        "description": "Coffee Beans - Arabica",
+        "count": 10,
+        "unit_cost": 12.50,
+        "line_amount": 125.00
+      },
+      {
+        "description": "Coffee Filters - Large",
+        "count": 5,
+        "unit_cost": 2.50,
+        "line_amount": 12.50
+      },
+      {
+        "description": "Milk - Whole",
+        "count": 15,
+        "unit_cost": 2.00,
+        "line_amount": 30.00
+      },
+      {
+        "description": "Sugar - White",
+        "count": 5,
+        "unit_cost": 2.20,
+        "line_amount": 11.00
+      }
+    ],
+    "payor": {
+      "name": "Cafe on the Corner",
+      "address_line1": "123 Main St",
+      "address_line2": null,
+      "address_city": "Anytown",
+      "address_country": "USA",
+      "address_postcode": "12345",
+      "phone_number": "(123) 456-7890",
+      "email": "orders@cafeonthecorner.com"
+    },
+    "payee": {
+      "name": "Coffee Supplies Co.",
+      "address_line1": "456 Roast Rd",
+      "address_line2": null,
+      "address_city": "Brewville",
+      "address_country": "USA",
+      "address_postcode": "54321",
+      "phone_number": "(987) 654-3210",
+      "email": "sales@coffeesupplies.com"
+    }
+  },
+  {
+    "invoice_number": "STUDIO-2023-04-01",
+    "invoice_date": "2023-04-01",
+    "amount": 1500.00,
+    "tax": 150.00,
+    "invoice_lines": [
+      {
+        "description": "Recording Studio - Full Day",
+        "count": 1,
+        "unit_cost": 1000.00,
+        "line_amount": 1000.00
+      },
+      {
+        "description": "Sound Engineer",
+        "count": 1,
+        "unit_cost": 500.00,
+        "line_amount": 500.00
+      }
+    ],
+    "payor": {
+      "name": "The Band",
+      "address_line1": "789 Melody Ln",
+      "address_line2": null,
+      "address_city": "Musictown",
+      "address_country": "USA",
+      "address_postcode": "54321",
+      "phone_number": "(987) 654-3210",
+      "email": "info@theband.com"
+    },
+    "payee": {
+      "name": "Sound Wave Studios",
+      "address_line1": "456 Decibel Dr",
+      "address_line2": null,
+      "address_city": "Audioville",
+      "address_country": "USA",
+      "address_postcode": "12345",
+      "phone_number": "(123) 456-7890",
+      "email": "bookings@soundwavestudios.com"
+    }
+  },
+  {
+    "invoice_number": "PLUMB-123",
+    "invoice_date": "2023-04-12",
+    "amount": 550.00,
+    "tax": 55.00,
+    "invoice_lines": [
+      {
+        "description": "Plumbing Services - Labor",
+        "count": 4,
+        "unit_cost": 100.00,
+        "line_amount": 400.00
+      },
+      {
+        "description": "Plumbing Supplies",
+        "count": 1,
+        "unit_cost": 150.00,
+        "line_amount": 150.00
+      }
+    ],
+    "payor": {
+      "name": "ABC Apartments",
+      "address_line1": "789 Residence Rd",
+      "address_line2": null,
+      "address_city": "Housingville",
+      "address_country": "USA",
+      "address_postcode": "54321",
+      "phone_number": "(987) 654-3210",
+      "email": "maintenance@abcapartments.com"
+    },
+    "payee": {
+      "name": "Plumbing Pros",
+      "address_line1": "456 Pipe Ln",
+      "address_line2": null,
+      "address_city": "Plumbington",
+      "address_country": "USA",
+      "address_postcode": "12345",
+      "phone_number": "(123) 456-7890",
+      "email": "service@plumbingpros.com"
+    }
+  },
+  {
+    "invoice_number": "EVENT-2023-04-15",
+    "invoice_date": "2023-04-15",
+    "amount": 2250.00,
+    "tax": 225.00,
+    "invoice_lines": [
+      {
+        "description": "Event Venue Rental",
+        "count": 1,
+        "unit_cost": 1500.00,
+        "line_amount": 1500.00
+      },
+      {
+        "description": "Catering Services",
+        "count": 1,
+        "unit_cost": 750.00,
+        "line_amount": 750.00
+      }
+    ],
+    "payor": {
+      "name": "XYZ Corporation",
+      "address_line1": "789 Business Blvd",
+      "address_line2": "Suite 200",
+      "address_city": "Corporateville",
+      "address_country": "USA",
+      "address_postcode": "54321",
+      "phone_number": "(987) 654-3210",
+      "email": "events@xyzcorp.com"
+    },
+    "payee": {
+      "name": "Premier Event Solutions",
+      "address_line1": "456 Celebration Rd",
+      "address_line2": null,
+      "address_city": "Eventburg",
+      "address_country": "USA",
+      "address_postcode": "12345",
+      "phone_number": "(123) 456-7890",
+      "email": "info@premiereventsolutions.com"
+    }
+  },
+  {
+    "invoice_number": "TRAVEL-2023-04-20",
+    "invoice_date": "2023-04-20",
+    "amount": 1200.00,
+    "tax": 120.00,
+    "invoice_lines": [
+      {
+        "description": "Flights - Round Trip",
+        "count": 2,
+        "unit_cost": 400.00,
+        "line_amount": 800.00
+      },
+      {
+        "description": "Hotel Accommodation",
+        "count": 2,
+        "unit_cost": 200.00,
+        "line_amount": 400.00
+      }
+    ],
+    "payor": {
+      "name": "ABC Consulting",
+      "address_line1": "789 Corporate Dr",
+      "address_line2": null,
+      "address_city": "Businesstown",
+      "address_country": "USA",
+      "address_postcode": "54321",
+      "phone_number": "(987) 654-3210",
+      "email": "travel@abcconsulting.com"
+    },
+    "payee": {
+      "name": "Globe Trotters Travel Agency",
+      "address_line1": "456 Adventure Ave",
+      "address_line2": null,
+      "address_city": "Travelville",
+      "address_country": "USA",
+      "address_postcode": "12345",
+      "phone_number": "(123) 456-7890",
+      "email": "bookings@globetrotterstravel.com"
+    }
+  },
+  {
+    "invoice_number": "TECH-2023-04-25",
+    "invoice_date": "2023-04-25",
+    "amount": 3500.00,
+    "tax": 350.00,
+    "invoice_lines": [
+      {
+        "description": "Server Hardware",
+        "count": 1,
+        "unit_cost": 2500.00,
+        "line_amount": 2500.00
+      },
+      {
+        "description": "Network Switches",
+        "count": 2,
+        "unit_cost": 500.00,
+        "line_amount": 1000.00
+      }
+    ],
+    "payor": {
+      "name": "XYZ Technologies",
+      "address_line1": "789 Silicon St",
+      "address_line2": null,
+      "address_city": "Techville",
+      "address_country": "USA",
+      "address_postcode": "54321",
+      "phone_number": "(987) 654-3210",
+      "email": "purchasing@xyztechnologies.com"
+    },
+    "payee": {
+      "name": "Tech Gear Solutions",
+      "address_line1": "456 Circuit Rd",
+      "address_line2": null,
+      "address_city": "Electronville",
+      "address_country": "USA",
+      "address_postcode": "12345",
+      "phone_number": "(123) 456-7890",
+      "email": "sales@techgearsolutions.com"
+    }
+  },
+  {
+    "invoice_number": "CLEAN-2023-04-30",
+    "invoice_date": "2023-04-30",
+    "amount": 450.00,
+    "tax": 45.00,
+    "invoice_lines": [
+      {
+        "description": "Office Cleaning - April 2023",
+        "count": 1,
+        "unit_cost": 450.00,
+        "line_amount": 450.00
+      }
+    ],
+    "payor": {
+      "name": "ABC Company",
+      "address_line1": "789 Commerce Blvd",
+      "address_line2": null,
+      "address_city": "Industrytown",
+      "address_country": "USA",
+      "address_postcode": "54321",
+      "phone_number": "(987) 654-3210",
+      "email": "facilities@abccompany.com"
+    },
+    "payee": {
+      "name": "Spotless Cleaning Services",
+      "address_line1": "456 Broom St",
+      "address_line2": null,
+      "address_city": "Cleanington",
+      "address_country": "USA",
+      "address_postcode": "12345",
+      "phone_number": "(123) 456-7890",
+      "email": "info@spotlesscleaningservices.com"
+    }
+  }
+  
+]
+
+---END OF FILE: backend\invoices.json---
+
+
+
+---START OF FILE: backend\main.py---
+
+import json
+import google.generativeai as genai
+import os
+from fastapi import FastAPI, Depends, HTTPException, UploadFile, File, Response
+from fastapi.middleware.cors import CORSMiddleware
+from sqlalchemy.orm import Session
+from sqlalchemy import func
+from db.models.contact_model import Contact
+from db.models.invoice_model import Invoice, InvoiceLine
+from datetime import datetime
+from prompts import input_prompt
+from dotenv import load_dotenv
+from db.db_setup import get_db, engine
+from api.utils.llm_functions import input_image_details, get_gemini_response
+
+from pydantic_schemas.invoice_schema import InvoiceCreateSchema, InvoiceUpdateSchema, InvoiceSchema
+from pydantic_schemas.contact_schema import ContactCreateSchema
+
+load_dotenv()
+
+genai.configure(api_key=os.getenv("GOOGLE_API_KEY"))
+
+app = FastAPI()
+
+# CORS configuration
+origins = [
+    os.getenv("FRONTEND_URL")
+]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins = ["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+@app.get("/import-invoices")
+def import_invoices(db: Session = Depends(get_db)):
+    with open("invoices.json", "r") as file:
+        invoices_data = json.load(file)
+        for invoice_data in invoices_data:
+            payor_data = invoice_data.pop("payor")
+            payee_data = invoice_data.pop("payee")
+            invoice_lines_data = invoice_data.pop("invoice_lines")
+
+            payor = db.query(Contact).filter_by(name=payor_data["name"]).first()
+            if not payor:
+                payor = Contact(**payor_data)
+                db.add(payor)
+                db.flush()
+
+            payee = db.query(Contact).filter_by(name=payee_data["name"]).first()
+            if not payee:
+                payee = Contact(**payee_data)
+                db.add(payee)
+                db.flush()
+
+            # Convert invoice_date string to date object
+            invoice_date_str = invoice_data.pop("invoice_date")
+            invoice_date = datetime.strptime(invoice_date_str, "%Y-%m-%d").date()
+
+            invoice = Invoice(**invoice_data, invoice_date=invoice_date, payor_id=payor.id, payee_id=payee.id)
+            db.add(invoice)
+            db.flush()
+
+            for line_data in invoice_lines_data:
+                invoice_line = InvoiceLine(**line_data, invoice_id=invoice.id)
+                db.add(invoice_line)
+
+    db.commit()
+    return {"message": "Invoices imported successfully"}
+
+
+def get_or_create_contact(db: Session, contact_data: dict):
+    
+    # This lookup probably is not necessary
+    contact = db.query(Contact).filter_by(
+        name=contact_data.get("name"),
+        address_line1=contact_data.get("address_line1"),
+        address_line2=contact_data.get("address_line2"),
+        address_city=contact_data.get("address_city"),
+        address_country=contact_data.get("address_country"),
+        address_postcode=contact_data.get("address_postcode"),
+        phone_number=contact_data.get("phone_number"),
+        email=contact_data.get("email")
+    ).first()
+
+    if not contact:
+        contact = Contact(**contact_data)
+        db.add(contact)
+        db.flush()
+
+    return contact
+
+
+from pydantic_schemas.invoice_schema import InvoiceCreateSchema, InvoiceUpdateSchema, InvoiceSchema
+from pydantic_schemas.contact_schema import ContactCreateSchema
+
+@app.post("/invoices", response_model=InvoiceSchema)
+def create_invoice(invoice: InvoiceCreateSchema, db: Session = Depends(get_db)):
+    payor_data = invoice.payor.dict()
+    payee_data = invoice.payee.dict()
+    invoice_lines_data = [line.dict() for line in invoice.invoice_lines]
+
+    invoice_data = invoice.dict(exclude={"payor", "payee", "invoice_lines"})
+
+    # Create new invoice
+    payor = get_or_create_contact(db, payor_data)
+    payee = get_or_create_contact(db, payee_data)
+
+    invoice_db = Invoice(**invoice_data, payor_id=payor.id, payee_id=payee.id)
+    db.add(invoice_db)
+    db.flush()
+
+    # Create invoice lines
+    for line_data in invoice_lines_data:
+        invoice_line = InvoiceLine(**line_data, invoice_id=invoice_db.id)
+        db.add(invoice_line)
+
+    db.commit()
+    db.refresh(invoice_db)
+
+    return invoice_db
+
+@app.put("/invoices/{invoice_id}", response_model=InvoiceSchema)
+def update_invoice(invoice_id: int, invoice: InvoiceUpdateSchema, db: Session = Depends(get_db)):
+    invoice_db = db.query(Invoice).filter(Invoice.id == invoice_id).first()
+    if not invoice_db:
+        raise HTTPException(status_code=404, detail="Invoice not found")
+
+    invoice_data = invoice.dict(exclude_unset=True, exclude={"payor", "payee", "invoice_lines"})
+
+    # Update invoice fields
+    for key, value in invoice_data.items():
+        setattr(invoice_db, key, value)
+
+    # Update contact details
+    if invoice.payor:
+        payor_data = invoice.payor.dict()
+        payor = get_or_create_contact(db, payor_data)
+        invoice_db.payor_id = payor.id
+
+    if invoice.payee:
+        payee_data = invoice.payee.dict()
+        payee = get_or_create_contact(db, payee_data)
+        invoice_db.payee_id = payee.id
+
+    # Update invoice lines
+    if invoice.invoice_lines:
+        existing_line_ids = [line.id for line in invoice_db.invoice_lines]
+        updated_line_ids = []
+
+        for line_data in invoice.invoice_lines:
+            line_id = line_data.id
+            if line_id in existing_line_ids:
+                # Update existing line
+                db.query(InvoiceLine).filter(InvoiceLine.id == line_id).update(line_data.dict(exclude={"id"}))
+                updated_line_ids.append(line_id)
+            else:
+                # Create new line
+                invoice_line = InvoiceLine(**line_data.dict(exclude={"id"}), invoice_id=invoice_db.id)
+                db.add(invoice_line)
+
+        # Delete lines that are not in the updated data
+        deleted_line_ids = set(existing_line_ids) - set(updated_line_ids)
+        if deleted_line_ids:
+            db.query(InvoiceLine).filter(InvoiceLine.id.in_(deleted_line_ids)).delete(synchronize_session=False)
+
+    db.commit()
+    db.refresh(invoice_db)
+
+    return invoice_db
+
+
+@app.get("/invoices", response_model=list[InvoiceSchema])
+def get_invoices(db: Session = Depends(get_db)):
+    invoices = db.query(Invoice).all()
+    return [
+        {
+            "id": invoice.id,
+            "invoice_number": invoice.invoice_number,
+            "invoice_date": invoice.invoice_date,
+            "amount": invoice.amount,
+            "tax": invoice.tax,
+            "payor_id": invoice.payor_id,
+            "payee_id": invoice.payee_id,
+            "from_llm": invoice.from_llm,
+            "payor": db.query(Contact).filter(Contact.id == invoice.payor_id).first(),
+            "payee": db.query(Contact).filter(Contact.id == invoice.payee_id).first(),
+            "invoice_lines": invoice.invoice_lines
+        }
+        for invoice in invoices
+    ]
+    
+    
+@app.get("/invoices/{invoice_id}/image")
+def get_invoice_image(invoice_id: int, db: Session = Depends(get_db)):
+    invoice = db.query(Invoice).filter(Invoice.id == invoice_id).first()
+    if not invoice:
+        raise HTTPException(status_code=404, detail="Invoice not found")
+    
+    return Response(content=invoice.invoice_image, media_type="image/jpeg")
+
+
+@app.get("/contacts")
+def get_contacts(db: Session = Depends(get_db)):
+    contacts = db.query(
+        Contact,
+        func.count(Invoice.id).filter(Invoice.payee_id == Contact.id).label('payee_invoice_count'),
+        func.count(Invoice.id).filter(Invoice.payor_id == Contact.id).label('payor_invoice_count')
+    ).group_by(Contact.id).all()
+
+    contact_data = []
+    for contact, payee_count, payor_count in contacts:
+        contact_dict = {
+            'contact': contact,
+            'payee_invoice_count': payee_count,
+            'payor_invoice_count': payor_count
+        }
+        contact_data.append(contact_dict)
+
+    return contact_data
+
+@app.get("/invoices/{invoice_id}", response_model=InvoiceSchema)
+def get_invoice(invoice_id: int, db: Session = Depends(get_db)):
+    invoice = db.query(Invoice).filter(Invoice.id == invoice_id).first()
+    if not invoice:
+        raise HTTPException(status_code=404, detail="Invoice not found")
+    return invoice
+
+def create_invoice(db: Session, invoice_data: dict, image_data: bytes = None):
+    # Extract payor and payee data
+    payor_data = invoice_data.pop("payor")
+    payee_data = invoice_data.pop("payee")
+    invoice_lines_data = invoice_data.pop("invoice_lines", [])    
+    
+    # Get or create payor and payee contacts
+    payor = get_or_create_contact(db, payor_data)
+    payee = get_or_create_contact(db, payee_data)
+    
+    # Convert invoice_date string to date object
+    invoice_date_str = invoice_data.pop("invoice_date")
+    invoice_date = datetime.strptime(invoice_date_str, "%Y-%m-%d").date()
+    
+    # Create invoice
+    invoice = Invoice(**invoice_data, invoice_date=invoice_date, payor_id=payor.id, payee_id=payee.id)
+    
+    # Save the uploaded file to the invoice_image field
+    if image_data:
+        invoice.invoice_image = image_data      
+    
+    # Create invoice lines
+    invoice_lines = []
+    for line_data in invoice_lines_data:
+        invoice_line = InvoiceLine(**line_data)
+        invoice_lines.append(invoice_line)
+    
+    invoice.invoice_lines = invoice_lines
+    
+    db.add(invoice)
+    db.commit()
+    db.refresh(invoice)
+    
+    return invoice
+
+@app.post("/upload")
+async def upload_file(file: UploadFile = File(...), db: Session = Depends(get_db)):
+    '''
+    Uploads an invoice file, uses an llm to convert to json, is successful saves in db
+    '''
+    print('upload')
+    temp_upload_dir = "temp_upload"
+    os.makedirs(temp_upload_dir, exist_ok=True)
+    
+    # file_path = os.path.join(temp_upload_dir, file.filename)
+    # with open(file_path, "wb") as buffer:
+    #     buffer.write(file.read())
+    
+    image_data = input_image_details(file)
+    llm_response = get_gemini_response(input_prompt, image_data, "")
+    
+    start_index = llm_response.find('{')
+    end_index = llm_response.rfind('}')
+
+    if start_index != -1 and end_index != -1:
+        json_string = llm_response[start_index:end_index+1]
+        
+        print(json_string)
+        
+        invoice_data = json.loads(json_string)                
+        ai_comments = invoice_data.pop("ai_comments")
+        
+        # if(invoice_data['invoice_number'] or invoice_data['payor'] or invoice_data['payee']):        
+            # Save invoice data to the database
+        invoice_dict = create_invoice(db, invoice_data, image_data[0]['data'])
+        invoiceid = invoice_dict.id
+        # else:
+        #     invoiceid = ''    
+        
+        response = { "id": invoiceid, "ai_comments": ai_comments }  
+    else:
+        response = {}  # Or any other appropriate default value or error handling    
+        
+    return response
+        
+        
+
+---END OF FILE: backend\main.py---
+
+
+
+---START OF FILE: backend\prompts.py---
+
+input_prompt='''
+You are an expert in understanding invoices, as well as an top tier software developer. We will upload an image as invoice and you will have to convert it to json format, based on this example:
+
+{
+  "invoice_number": "TECH-2023-04-25",
+  "invoice_date": "2023-04-25",
+  "amount": 3500.00,
+  "tax": 350.00,
+  "invoice_lines": [
+    {
+      "description": "Server Hardware",
+      "count": 1,
+      "unit_cost": 2500.00,
+      "line_amount": 2500.00
+    },
+    {
+      "description": "Network Switches",
+      "count": 2,
+      "unit_cost": 500.00,
+      "line_amount": 1000.00
+    }
+  ],
+  "payor": {
+    "name": "XYZ Technologies",
+    "address_line1": "789 Silicon St",
+    "address_line2": null,
+    "address_city": "Techville",
+    "address_country": "USA",
+    "address_postcode": "54321",
+    "phone_number": "(987) 654-3210",
+    "email": "purchasing@xyztechnologies.com"
+  },
+  "payee": {
+    "name": "Tech Gear Solutions",
+    "address_line1": "456 Circuit Rd",
+    "address_line2": null,
+    "address_city": "Electronville",
+    "address_country": "USA",
+    "address_postcode": "12345",
+    "phone_number": "(123) 456-7890",
+    "email": "sales@techgearsolutions.com"
+  },
+  "ai_comments": "Put comments about parts of the invoice that were hard to read, if it isn't an invoice, or other problems, here."      
+}
+After generating the data, run another pass through to double check the all of the information is correct, and that you have included all invoice lines. Make any amendments necessary.
+
+Ensure all dates are in the yyyy-mm-dd format. 
+
+The ai_comments should be notes on any issues you encountered interpretting the invoice data. If the image does not appear to be an invoice, make the invoice object null and return a note in ai_comments saying what you think it is. If there are no issues just leave this blank, don't make them up or copy the example one.
+
+Return a maximum of eight invoice item lines, ignore any after this but leave an apologetic (indicate you are sorry) note in ai_comments telling the user that some lines have been excluded because of the limitations of the AI system. 
+
+'''
+
+position_prompt = '''
+
+You are an expert in understanding invoices, as well as an top tier software developer. 
+
+We have already extracted the data from this invoice. What we would like you to do is give the x and y pixel position from the top left of the image,
+
+However instead of returning just the value for each json element, return a dictionary { value: str, x: number, y: number}. The pixel position should be the number of pixes from top left of the document, where the data item was found. 
+
+
+'''
+
+
+---END OF FILE: backend\prompts.py---
+
+
+
+---START OF FILE: backend\requirements.bk.txt---
+
+fastapi
+uvicorn
+sqlalchemy
+python-multipart
+google-generativeai
+python-dotenv
+Pillow
+
+---END OF FILE: backend\requirements.bk.txt---
+
+
+
+---START OF FILE: backend\requirements.txt---
+
+annotated-types==0.6.0
+anyio==4.3.0
+cachetools==5.3.3
+certifi==2024.2.2
+charset-normalizer==3.3.2
+click==8.1.7
+colorama==0.4.6
+fastapi==0.110.0
+google-ai-generativelanguage==0.4.0
+google-api-core==2.17.1
+google-auth==2.28.2
+google-generativeai==0.4.1
+googleapis-common-protos==1.63.0
+greenlet==3.0.3
+grpcio==1.62.1
+grpcio-status==1.62.1
+h11==0.14.0
+idna==3.6
+pillow==10.2.0
+proto-plus==1.23.0
+protobuf==4.25.3
+pyasn1==0.5.1
+pyasn1-modules==0.3.0
+pydantic==2.6.3
+pydantic_core==2.16.3
+python-dotenv==1.0.1
+python-multipart==0.0.9
+requests==2.31.0
+rsa==4.9
+sniffio==1.3.1
+SQLAlchemy==2.0.28
+starlette==0.36.3
+tqdm==4.66.2
+typing_extensions==4.10.0
+urllib3==2.2.1
+uvicorn==0.28.0
+
+
+---END OF FILE: backend\requirements.txt---
+
+
+
+---START OF FILE: backend\schemas.py---
+
+from datetime import date
+from pydantic import BaseModel
+from typing import List, Optional
+
+class ContactSchema(BaseModel):
+    id: Optional[int]
+    name: str
+    line1: Optional[str] = None
+    line2: Optional[str] = None
+    city: Optional[str] = None
+    country: Optional[str] = None
+    postcode: Optional[str] = None
+    phone_number: Optional[str] = None
+    email: Optional[str] = None
+
+    class Config:
+        orm_mode = True
+
+class InvoiceLineSchema(BaseModel):
+    id: Optional[int]
+    description: Optional[str] = None
+    count: Optional[int]
+    unit_cost: Optional[float]
+    line_amount: Optional[float]
+
+    class Config:
+        orm_mode = True
+
+class InvoiceSchema(BaseModel):
+    id: int
+    invoice_number: str
+    invoice_date: date
+    amount: Optional[float]
+    tax: Optional[float]
+    invoice_lines: List[InvoiceLineSchema]
+    payor: ContactSchema
+    payee: ContactSchema
+
+    class Config:
+        orm_mode = True
+        
+class InvoiceCreateSchema(BaseModel):
+    invoice_number: str
+    invoice_date: date
+    amount: float
+    tax: float
+    invoice_lines: List[InvoiceLineSchema]
+    payor: ContactSchema
+    payee: ContactSchema
+
+    class Config:
+        orm_mode = True        
+        
+class ContactSchema(BaseModel):
+    id: Optional[int]
+    name: str
+    line1: Optional[str] = None
+    line2: Optional[str] = None
+    city: Optional[str] = None
+    country: Optional[str] = None
+    postcode: Optional[str] = None
+    phone_number: Optional[str] = None
+    email: Optional[str] = None
+    payee_invoice_count: int
+    payor_invoice_count: int
+
+    class Config:
+        orm_mode = True
+
+---END OF FILE: backend\schemas.py---
+
+
+
+---START OF FILE: backend\vercel.json---
+
+{
+    "version": 2,
+    "builds": [
+      { "src": "main.py", "use": "@vercel/python" }
+    ],
+    "routes": [
+      { "src": "/(.*)", "dest": "/main.py" }
+    ],
+    "env": {
+      "APP_MODULE": "main:app"
+    }
+  }
+
+---END OF FILE: backend\vercel.json---
+
+
+
+---START OF FILE: backend\alembic\env.py---
+
+from logging.config import fileConfig
+
+from sqlalchemy import engine_from_config
+from sqlalchemy import pool
+
+from alembic import context
+from db.db_setup import Base
+from db.models import invoice_model, contact_model
+
+# this is the Alembic Config object, which provides
+# access to the values within the .ini file in use.
+config = context.config
+
+# Interpret the config file for Python logging.
+# This line sets up loggers basically.
+if config.config_file_name is not None:
+    fileConfig(config.config_file_name)
+
+# add your model's MetaData object here
+# for 'autogenerate' support
+# from myapp import mymodel
+# target_metadata = mymodel.Base.metadata
+target_metadata = Base.metadata
+
+# other values from the config, defined by the needs of env.py,
+# can be acquired:
+# my_important_option = config.get_main_option("my_important_option")
+# ... etc.
+
+
+def run_migrations_offline() -> None:
+    """Run migrations in 'offline' mode.
+
+    This configures the context with just a URL
+    and not an Engine, though an Engine is acceptable
+    here as well.  By skipping the Engine creation
+    we don't even need a DBAPI to be available.
+
+    Calls to context.execute() here emit the given string to the
+    script output.
+
+    """
+    url = config.get_main_option("sqlalchemy.url")
+    context.configure(
+        url=url,
+        target_metadata=target_metadata,
+        literal_binds=True,
+        dialect_opts={"paramstyle": "named"},
+    )
+
+    with context.begin_transaction():
+        context.run_migrations()
+
+
+def run_migrations_online() -> None:
+    """Run migrations in 'online' mode.
+
+    In this scenario we need to create an Engine
+    and associate a connection with the context.
+
+    """
+    connectable = engine_from_config(
+        config.get_section(config.config_ini_section, {}),
+        prefix="sqlalchemy.",
+        poolclass=pool.NullPool,
+    )
+
+    with connectable.connect() as connection:
+        context.configure(
+            connection=connection, target_metadata=target_metadata
+        )
+
+        with context.begin_transaction():
+            context.run_migrations()
+
+
+if context.is_offline_mode():
+    run_migrations_offline()
+else:
+    run_migrations_online()
+
+
+---END OF FILE: backend\alembic\env.py---
+
+
+
+---START OF FILE: backend\alembic\versions\af722514d546_.py---
+
+"""empty message
+
+Revision ID: af722514d546
+Revises: 
+Create Date: 2024-03-29 11:00:49.720485
+
+"""
+from typing import Sequence, Union
+
+from alembic import op
+import sqlalchemy as sa
+
+
+# revision identifiers, used by Alembic.
+revision: str = 'af722514d546'
+down_revision: Union[str, None] = None
+branch_labels: Union[str, Sequence[str], None] = None
+depends_on: Union[str, Sequence[str], None] = None
+
+
+def upgrade() -> None:
+    # ### commands auto generated by Alembic - please adjust! ###
+    op.create_table('contacts',
+    sa.Column('id', sa.Integer(), nullable=False),
+    sa.Column('name', sa.String(), nullable=True),
+    sa.Column('address_line1', sa.String(), nullable=True),
+    sa.Column('address_line2', sa.String(), nullable=True),
+    sa.Column('address_city', sa.String(), nullable=True),
+    sa.Column('address_country', sa.String(), nullable=True),
+    sa.Column('address_postcode', sa.String(), nullable=True),
+    sa.Column('phone_number', sa.String(), nullable=True),
+    sa.Column('email', sa.String(), nullable=True),
+    sa.PrimaryKeyConstraint('id')
+    )
+    op.create_index(op.f('ix_contacts_name'), 'contacts', ['name'], unique=False)
+    op.create_table('invoices',
+    sa.Column('id', sa.Integer(), nullable=False),
+    sa.Column('invoice_number', sa.String(), nullable=True),
+    sa.Column('invoice_date', sa.Date(), nullable=True),
+    sa.Column('amount', sa.Float(), nullable=True),
+    sa.Column('tax', sa.Float(), nullable=True),
+    sa.Column('payor_id', sa.Integer(), nullable=False),
+    sa.Column('payee_id', sa.Integer(), nullable=False),
+    sa.Column('from_llm', sa.Boolean(), nullable=False),
+    sa.Column('created_at', sa.DateTime(), nullable=False),
+    sa.Column('invoice_image', sa.LargeBinary(), nullable=True),
+    sa.ForeignKeyConstraint(['payee_id'], ['contacts.id'], ),
+    sa.ForeignKeyConstraint(['payor_id'], ['contacts.id'], ),
+    sa.PrimaryKeyConstraint('id')
+    )
+    op.create_index(op.f('ix_invoices_invoice_number'), 'invoices', ['invoice_number'], unique=False)
+    op.create_table('invoice_lines',
+    sa.Column('id', sa.Integer(), nullable=False),
+    sa.Column('description', sa.String(), nullable=True),
+    sa.Column('count', sa.Integer(), nullable=True),
+    sa.Column('unit_cost', sa.Float(), nullable=True),
+    sa.Column('line_amount', sa.Float(), nullable=True),
+    sa.Column('invoice_id', sa.Integer(), nullable=False),
+    sa.ForeignKeyConstraint(['invoice_id'], ['invoices.id'], ),
+    sa.PrimaryKeyConstraint('id')
+    )
+    # ### end Alembic commands ###
+
+
+def downgrade() -> None:
+    # ### commands auto generated by Alembic - please adjust! ###
+    op.drop_table('invoice_lines')
+    op.drop_index(op.f('ix_invoices_invoice_number'), table_name='invoices')
+    op.drop_table('invoices')
+    op.drop_index(op.f('ix_contacts_name'), table_name='contacts')
+    op.drop_table('contacts')
+    # ### end Alembic commands ###
+
+
+---END OF FILE: backend\alembic\versions\af722514d546_.py---
+
+
+
+---START OF FILE: backend\api\utils\llm_functions.py---
+
+import google.generativeai as genai
+from fastapi import FastAPI, Depends, HTTPException, UploadFile, File
+from PIL import Image, UnidentifiedImageError
+from io import BytesIO
+from google.api_core import exceptions
+
+def get_gemini_response(input, image, prompt):
+    try:
+        model = genai.GenerativeModel('gemini-pro-vision')
+        response = model.generate_content([input, image[0], prompt])
+        return response.text
+    except exceptions.RetryError as e:
+        raise HTTPException(status_code=500, detail=f"Error communicating with the LLM service: {str(e)}")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"An unexpected error occurred: {str(e)}")
+
+def input_image_details(uploaded_file: UploadFile):
+    if uploaded_file is not None:
+        try:
+            # Open the image using PIL directly from the UploadFile
+            image = Image.open(uploaded_file.file)
+            # Convert the image to bytes
+            bytes_io = BytesIO()
+            image.save(bytes_io, format=image.format)
+            bytes_data = bytes_io.getvalue()
+            image_parts = [
+                {
+                    "mime_type": uploaded_file.content_type,  # Get the mime type
+                    "data": bytes_data
+                }
+            ]
+            return image_parts
+        except UnidentifiedImageError:
+            raise HTTPException(status_code=400, detail="Invalid image file")
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"An unexpected error occurred: {str(e)}")
+    else:
+        raise FileNotFoundError('No file uploaded')
+
+---END OF FILE: backend\api\utils\llm_functions.py---
+
+
+
+---START OF FILE: backend\db\db_setup.py---
+
+from sqlalchemy.orm import Session
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
+from sqlalchemy.ext.declarative import declarative_base
+
+SQLALCHEMY_DATABASE_URL = 'postgresql+psycopg2://invoice_reader_user:2exCFtiAs8t0Xd0uyfMl7qePVFzvCSK9@dpg-co2udi6v3ddc73dljat0-a.singapore-postgres.render.com/invoice_reader'
+# SQLALCHEMY_DATABASE_URL = 'postgresql+psycopg2://postgres:pg16@localhost:5432/invoice_reader'
+
+engine = create_engine(
+   SQLALCHEMY_DATABASE_URL, connect_args={}, future=True
+)
+SessionLocal = sessionmaker(
+    autocommit=False, 
+    autoflush=False, 
+    bind=engine, 
+    future=True
+)
+
+Base = declarative_base()
+
+def get_db():
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
+        
+
+---END OF FILE: backend\db\db_setup.py---
+
+
+
+---START OF FILE: backend\db\models\contact_model.py---
+
+from typing import List, Optional
+from sqlalchemy import Column, Integer, String
+from sqlalchemy.ext.declarative import declarative_base
+
+from sqlalchemy.orm import Mapped, DeclarativeBase, mapped_column, relationship
+
+from ..db_setup import Base
+
+class Contact(Base):
+    __tablename__ = "contacts"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    name: Mapped[Optional[str]] = mapped_column(String, index=True)
+    address_line1: Mapped[Optional[str]]
+    address_line2: Mapped[Optional[str]]
+    address_city: Mapped[Optional[str]]
+    address_country: Mapped[Optional[str]]
+    address_postcode: Mapped[Optional[str]]
+    phone_number: Mapped[Optional[str]]
+    email: Mapped[Optional[str]]
+
+    invoices_as_payor: Mapped[List["Invoice"]] = relationship(
+        back_populates="payor",
+        foreign_keys="Invoice.payor_id",  # Add this line
+        uselist=False
+    )
+
+    invoices_as_payee: Mapped[List["Invoice"]] = relationship(
+        back_populates="payee",
+        foreign_keys="Invoice.payee_id",  # Add this line
+        uselist=False
+    )
+
+---END OF FILE: backend\db\models\contact_model.py---
+
+
+
+---START OF FILE: backend\db\models\invoice_model.py---
+
+from typing import List, Optional
+from datetime import datetime, date
+from sqlalchemy import Integer, String, Float, ForeignKey, LargeBinary, Boolean, DateTime
+from sqlalchemy.orm import relationship, DeclarativeBase
+from sqlalchemy.ext.declarative import declarative_base
+
+from sqlalchemy.orm import Mapped
+from sqlalchemy.orm import mapped_column
+
+from ..db_setup import Base
+
+class Invoice(Base):
+    __tablename__ = "invoices"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    invoice_number: Mapped[Optional[str]] = mapped_column(String, index=True)
+    invoice_date: Mapped[Optional[date]]
+    amount: Mapped[Optional[float]] = mapped_column(Float)
+    tax: Mapped[Optional[float]] = mapped_column(Float)
+    payor_id: Mapped[int] = mapped_column(ForeignKey("contacts.id"))
+    payee_id: Mapped[int] = mapped_column(ForeignKey("contacts.id"))
+    from_llm: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+
+    invoice_lines: Mapped[List["InvoiceLine"]] = relationship(
+        back_populates="invoice", cascade="all, delete-orphan"
+    )    
+        
+    payor: Mapped["Contact"] = relationship(foreign_keys=[payor_id])
+    payee: Mapped["Contact"] = relationship(foreign_keys=[payee_id])
+    invoice_image: Mapped[Optional[bytes]] = mapped_column(LargeBinary)
+
+
+class InvoiceLine(Base):
+    __tablename__ = "invoice_lines"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    description: Mapped[Optional[str]] = mapped_column(String)
+    count: Mapped[Optional[int]] = mapped_column(Integer)
+    unit_cost: Mapped[Optional[float]] = mapped_column(Float)
+    line_amount: Mapped[Optional[float]] = mapped_column(Float)
+    invoice_id: Mapped[int] = mapped_column(ForeignKey("invoices.id"))
+    
+    invoice: Mapped["Invoice"] = relationship(back_populates="invoice_lines")
+
+---END OF FILE: backend\db\models\invoice_model.py---
+
+
+
+---START OF FILE: backend\db\models\mixins.py---
+
+from datetime import datetime
+from sqlalchemy import Column, DateTime
+from sqlalchemy.orm import Mapped
+from sqlalchemy.orm import mapped_column
+from sqlalchemy.orm import declarative_mixin
+
+@declarative_mixin
+class Timestamp:
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+
+---END OF FILE: backend\db\models\mixins.py---
+
+
+
+---START OF FILE: backend\pydantic_schemas\contact_schema.py---
+
+from __future__ import annotations
+from typing import Optional, List
+from pydantic import BaseModel
+
+class ContactCreateSchema(BaseModel):
+    name: Optional[str] = None
+    address_line1: Optional[str] = None
+    address_line2: Optional[str] = None
+    address_city: Optional[str] = None
+    address_country: Optional[str] = None
+    address_postcode: Optional[str] = None
+    phone_number: Optional[str] = None
+    email: Optional[str] = None
+
+    class Config:
+        orm_mode = True
+
+class ContactSchema(ContactCreateSchema):
+    id: int
+
+
+---END OF FILE: backend\pydantic_schemas\contact_schema.py---
+
+
+
+---START OF FILE: backend\pydantic_schemas\invoice_schema.py---
+
+from __future__ import annotations
+from typing import Optional, List
+from datetime import date
+from pydantic import BaseModel
+from .contact_schema import ContactCreateSchema, ContactSchema
+
+class InvoiceLineCreateSchema(BaseModel):
+    description: Optional[str] = None
+    count: Optional[int] = None
+    unit_cost: Optional[float] = None
+    line_amount: Optional[float] = None
+
+    class Config:
+        orm_mode = True
+
+class InvoiceLineSchema(InvoiceLineCreateSchema):
+    id: int
+    invoice_id: int
+
+class InvoiceCreateSchema(BaseModel):
+    invoice_number: str
+    invoice_date: date
+    amount: float
+    tax: float
+    invoice_lines: List[InvoiceLineCreateSchema]
+    payor: 'ContactCreateSchema'
+    payee: 'ContactCreateSchema'
+
+    class Config:
+        orm_mode = True
+
+class InvoiceUpdateSchema(BaseModel):
+    invoice_number: Optional[str] = None
+    invoice_date: Optional[date] = None
+    amount: Optional[float] = None
+    tax: Optional[float] = None
+    invoice_lines: Optional[List[InvoiceLineSchema]] = None
+    payor: Optional['ContactCreateSchema'] = None
+    payee: Optional['ContactCreateSchema'] = None
+
+    class Config:
+        orm_mode = True
+
+class InvoiceSchema(BaseModel):
+    id: int
+    invoice_number: str
+    invoice_date: date
+    amount: float
+    tax: float
+    payor_id: int
+    payee_id: int
+    invoice_lines: List[InvoiceLineSchema]
+    payor: ContactSchema
+    payee: ContactSchema
+    # invoice_image: Optional[bytes] = None
+    from_llm: bool
+
+    class Config:
+        orm_mode = True
+    
+    
+from .contact_schema import ContactSchema, ContactCreateSchema
+
+---END OF FILE: backend\pydantic_schemas\invoice_schema.py---
+
+
+
+---START OF FILE: frontend\angular.json---
+
+{
+  "$schema": "./node_modules/@angular/cli/lib/config/schema.json",
+  "version": 1,
+  "newProjectRoot": "projects",
+  "projects": {
+    "frontend": {
+      "projectType": "application",
+      "schematics": {
+        "@schematics/angular:component": {
+          "style": "scss"
+        }
+      },
+      "root": "",
+      "sourceRoot": "src",
+      "prefix": "app",
+      "architect": {
+        "build": {
+          "builder": "@angular-devkit/build-angular:application",
+          "options": {
+            "outputPath": "dist/frontend",
+            "index": "src/index.html",
+            "browser": "src/main.ts",
+            "polyfills": [
+              "zone.js"
+            ],
+            "tsConfig": "tsconfig.app.json",
+            "inlineStyleLanguage": "scss",
+            "assets": [
+              "src/favicon.ico",
+              "src/assets"
+            ],
+            "styles": [
+              "src/styles.scss","src/styles.css" 
+            ],
+            "scripts": []
+          },
+          "configurations": {
+            "production": {
+              "budgets": [
+                {
+                  "type": "initial",
+                  "maximumWarning": "500kb",
+                  "maximumError": "1mb"
+                },
+                {
+                  "type": "anyComponentStyle",
+                  "maximumWarning": "2kb",
+                  "maximumError": "4kb"
+                }
+              ],
+              "outputHashing": "all"
+            },
+            "development": {
+              "optimization": false,
+              "extractLicenses": false,
+              "sourceMap": true
+            }
+          },
+          "defaultConfiguration": "production"
+        },
+        "serve": {
+          "builder": "@angular-devkit/build-angular:dev-server",
+          "configurations": {
+            "production": {
+              "buildTarget": "frontend:build:production"
+            },
+            "development": {
+              "buildTarget": "frontend:build:development"
+            }
+          },
+          "defaultConfiguration": "development"
+        },
+        "extract-i18n": {
+          "builder": "@angular-devkit/build-angular:extract-i18n",
+          "options": {
+            "buildTarget": "frontend:build"
+          }
+        },
+        "test": {
+          "builder": "@angular-devkit/build-angular:karma",
+          "options": {
+            "polyfills": [
+              "zone.js",
+              "zone.js/testing"
+            ],
+            "tsConfig": "tsconfig.spec.json",
+            "inlineStyleLanguage": "scss",
+            "assets": [
+              "src/favicon.ico",
+              "src/assets"
+            ],
+            "styles": [
+              "src/styles.scss"
+            ],
+            "scripts": []
+          }
+        }
+      }
+    }
+  }
+}
+
+
+---END OF FILE: frontend\angular.json---
+
+
+
+---START OF FILE: frontend\package.json---
+
+{
+  "name": "frontend",
+  "version": "0.0.0",
+  "scripts": {
+    "ng": "ng",
+    "start": "ng serve",
+    "build": "ng build",
+    "watch": "ng build --watch --configuration development",
+    "test": "ng test"
+  },
+  "private": true,
+  "dependencies": {
+    "@angular/animations": "^17.2.0",
+    "@angular/common": "^17.2.0",
+    "@angular/compiler": "^17.2.0",
+    "@angular/core": "^17.2.0",
+    "@angular/forms": "^17.2.0",
+    "@angular/platform-browser": "^17.2.0",
+    "@angular/platform-browser-dynamic": "^17.2.0",
+    "@angular/router": "^17.2.0",
+    "ngx-pagination": "^6.0.3",
+    "rxjs": "~7.8.0",
+    "tslib": "^2.3.0",
+    "zone.js": "~0.14.3"
+  },
+  "devDependencies": {
+    "@angular-devkit/build-angular": "^17.2.3",
+    "@angular/cli": "^17.2.3",
+    "@angular/compiler-cli": "^17.2.0",
+    "@types/jasmine": "~5.1.0",
+    "autoprefixer": "^10.4.18",
+    "jasmine-core": "~5.1.0",
+    "karma": "~6.4.0",
+    "karma-chrome-launcher": "~3.2.0",
+    "karma-coverage": "~2.2.0",
+    "karma-jasmine": "~5.1.0",
+    "karma-jasmine-html-reporter": "~2.1.0",
+    "postcss": "^8.4.35",
+    "tailwindcss": "^3.4.1",
+    "typescript": "~5.3.2"
+  }
+}
+
+
+---END OF FILE: frontend\package.json---
+
+
+
+---START OF FILE: frontend\tailwind.config.js---
+
+module.exports = {
+  content: [
+    './src/**/*.{html,ts}',
+  ],
+  theme: {
+    extend: {},
+  },
+  plugins: [],
+}
+
+
+---END OF FILE: frontend\tailwind.config.js---
+
+
+
+---START OF FILE: frontend\tsconfig.app.json---
+
+/* To learn more about this file see: https://angular.io/config/tsconfig. */
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "outDir": "./out-tsc/app",
+    "types": []
+  },
+  "files": [
+    "src/main.ts"
+  ],
+  "include": [
+    "src/**/*.d.ts"
+  ]
+}
+
+
+---END OF FILE: frontend\tsconfig.app.json---
+
+
+
+---START OF FILE: frontend\tsconfig.json---
+
+/* To learn more about this file see: https://angular.io/config/tsconfig. */
+{
+  "compileOnSave": false,
+  "compilerOptions": {
+    "outDir": "./dist/out-tsc",
+    "forceConsistentCasingInFileNames": true,
+    "strict": true,
+    "noImplicitOverride": true,
+    "noPropertyAccessFromIndexSignature": true,
+    "noImplicitReturns": true,
+    "noFallthroughCasesInSwitch": true,
+    "skipLibCheck": true,
+    "esModuleInterop": true,
+    "sourceMap": true,
+    "declaration": false,
+    "experimentalDecorators": true,
+    "moduleResolution": "node",
+    "importHelpers": true,
+    "target": "ES2022",
+    "module": "ES2022",
+    "useDefineForClassFields": false,
+    "lib": [
+      "ES2022",
+      "dom"
+    ]
+  },
+  "angularCompilerOptions": {
+    "enableI18nLegacyMessageIdFormat": false,
+    "strictInjectionParameters": true,
+    "strictInputAccessModifiers": true,
+    "strictTemplates": true
+  }
+}
+
+
+---END OF FILE: frontend\tsconfig.json---
+
+
+
+---START OF FILE: frontend\tsconfig.spec.json---
+
+/* To learn more about this file see: https://angular.io/config/tsconfig. */
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "outDir": "./out-tsc/spec",
+    "types": [
+      "jasmine"
+    ]
+  },
+  "include": [
+    "src/**/*.spec.ts",
+    "src/**/*.d.ts"
+  ]
+}
+
+
+---END OF FILE: frontend\tsconfig.spec.json---
+
+
+
+---START OF FILE: frontend\.vscode\extensions.json---
+
+{
+  // For more information, visit: https://go.microsoft.com/fwlink/?linkid=827846
+  "recommendations": ["angular.ng-template"]
+}
+
+
+---END OF FILE: frontend\.vscode\extensions.json---
+
+
+
+---START OF FILE: frontend\.vscode\launch.json---
+
+{
+  // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "ng serve",
+      "type": "chrome",
+      "request": "launch",
+      "preLaunchTask": "npm: start",
+      "url": "http://localhost:4200/"
+    },
+    {
+      "name": "ng test",
+      "type": "chrome",
+      "request": "launch",
+      "preLaunchTask": "npm: test",
+      "url": "http://localhost:9876/debug.html"
+    }
+  ]
+}
+
+
+---END OF FILE: frontend\.vscode\launch.json---
+
+
+
+---START OF FILE: frontend\.vscode\tasks.json---
+
+{
+  // For more information, visit: https://go.microsoft.com/fwlink/?LinkId=733558
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "type": "npm",
+      "script": "start",
+      "isBackground": true,
+      "problemMatcher": {
+        "owner": "typescript",
+        "pattern": "$tsc",
+        "background": {
+          "activeOnStart": true,
+          "beginsPattern": {
+            "regexp": "(.*?)"
+          },
+          "endsPattern": {
+            "regexp": "bundle generation complete"
+          }
+        }
+      }
+    },
+    {
+      "type": "npm",
+      "script": "test",
+      "isBackground": true,
+      "problemMatcher": {
+        "owner": "typescript",
+        "pattern": "$tsc",
+        "background": {
+          "activeOnStart": true,
+          "beginsPattern": {
+            "regexp": "(.*?)"
+          },
+          "endsPattern": {
+            "regexp": "bundle generation complete"
+          }
+        }
+      }
+    }
+  ]
+}
+
+
+---END OF FILE: frontend\.vscode\tasks.json---
+

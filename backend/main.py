@@ -5,15 +5,16 @@ from fastapi import FastAPI, Depends, HTTPException, UploadFile, File, Response
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from sqlalchemy import func
-from database import Invoice, InvoiceLine, Contact, clear_all
-from schemas import InvoiceSchema
+from db.models.contact_model import Contact
+from db.models.invoice_model import Invoice, InvoiceLine
 from datetime import datetime
 from prompts import input_prompt
 from dotenv import load_dotenv
-from db.db_setup import get_db
+from db.db_setup import get_db, engine
 from api.utils.llm_functions import input_image_details, get_gemini_response
 
-from fastapi.staticfiles import StaticFiles
+from pydantic_schemas.invoice_schema import InvoiceCreateSchema, InvoiceUpdateSchema, InvoiceSchema
+from pydantic_schemas.contact_schema import ContactCreateSchema
 
 load_dotenv()
 
@@ -28,7 +29,7 @@ origins = [
 
 app.add_middleware(
     CORSMiddleware,
- allow_origins = ["*"],
+    allow_origins = ["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -70,25 +71,19 @@ def import_invoices(db: Session = Depends(get_db)):
     db.commit()
     return {"message": "Invoices imported successfully"}
 
-@app.post("/clear-data")
-def clear_data(db: Session = Depends(get_db)):
-    # db.query(InvoiceLine).delete()
-    # db.query(Invoice).delete()
-    # db.query(Contact).delete()
-    clear_all()    
-    db.commit()
-    return {"message": "Data cleared successfully"}
 
 def get_or_create_contact(db: Session, contact_data: dict):
+    
+    # This lookup probably is not necessary
     contact = db.query(Contact).filter_by(
-        name=contact_data["name"],
-        line1=contact_data["line1"],
-        line2=contact_data.get("line2"),
-        city=contact_data["city"],
-        country=contact_data["country"],
-        postcode=contact_data["postcode"],
-        phone_number=contact_data["phone_number"],
-        email=contact_data["email"]
+        name=contact_data.get("name"),
+        address_line1=contact_data.get("address_line1"),
+        address_line2=contact_data.get("address_line2"),
+        address_city=contact_data.get("address_city"),
+        address_country=contact_data.get("address_country"),
+        address_postcode=contact_data.get("address_postcode"),
+        phone_number=contact_data.get("phone_number"),
+        email=contact_data.get("email")
     ).first()
 
     if not contact:
@@ -98,55 +93,73 @@ def get_or_create_contact(db: Session, contact_data: dict):
 
     return contact
 
+
+from pydantic_schemas.invoice_schema import InvoiceCreateSchema, InvoiceUpdateSchema, InvoiceSchema
+from pydantic_schemas.contact_schema import ContactCreateSchema
+
 @app.post("/invoices", response_model=InvoiceSchema)
-def create_or_update_invoice(invoice: InvoiceSchema, db: Session = Depends(get_db)):
-    payor_data = invoice.payor.dict(exclude={"id"})
-    payee_data = invoice.payee.dict(exclude={"id"})
-    invoice_lines_data = [line.dict(exclude={"id"}) for line in invoice.invoice_lines]
+def create_invoice(invoice: InvoiceCreateSchema, db: Session = Depends(get_db)):
+    payor_data = invoice.payor.dict()
+    payee_data = invoice.payee.dict()
+    invoice_lines_data = [line.dict() for line in invoice.invoice_lines]
 
-    if invoice.id == -1:
-        # Create new invoice
+    invoice_data = invoice.dict(exclude={"payor", "payee", "invoice_lines"})
+
+    # Create new invoice
+    payor = get_or_create_contact(db, payor_data)
+    payee = get_or_create_contact(db, payee_data)
+
+    invoice_db = Invoice(**invoice_data, payor_id=payor.id, payee_id=payee.id)
+    db.add(invoice_db)
+    db.flush()
+
+    # Create invoice lines
+    for line_data in invoice_lines_data:
+        invoice_line = InvoiceLine(**line_data, invoice_id=invoice_db.id)
+        db.add(invoice_line)
+
+    db.commit()
+    db.refresh(invoice_db)
+
+    return invoice_db
+
+@app.put("/invoices/{invoice_id}", response_model=InvoiceSchema)
+def update_invoice(invoice_id: int, invoice: InvoiceUpdateSchema, db: Session = Depends(get_db)):
+    invoice_db = db.query(Invoice).filter(Invoice.id == invoice_id).first()
+    if not invoice_db:
+        raise HTTPException(status_code=404, detail="Invoice not found")
+
+    invoice_data = invoice.dict(exclude_unset=True, exclude={"payor", "payee", "invoice_lines"})
+
+    # Update invoice fields
+    for key, value in invoice_data.items():
+        setattr(invoice_db, key, value)
+
+    # Update contact details
+    if invoice.payor:
+        payor_data = invoice.payor.dict()
         payor = get_or_create_contact(db, payor_data)
-        payee = get_or_create_contact(db, payee_data)
-
-        invoice_data = invoice.dict(exclude={"payor", "payee", "invoice_lines", "id"})
-        invoice_db = Invoice(**invoice_data, payor_id=payor.id, payee_id=payee.id)
-        db.add(invoice_db)
-        db.flush()
-
-        for line_data in invoice_lines_data:
-            invoice_line = InvoiceLine(**line_data, invoice_id=invoice_db.id)
-            db.add(invoice_line)
-    else:
-        # Update existing invoice
-        invoice_db = db.query(Invoice).filter(Invoice.id == invoice.id).first()
-        if not invoice_db:
-            raise HTTPException(status_code=404, detail="Invoice not found")
-
-        # Update contact details
-        payor = get_or_create_contact(db, payor_data)
-        payee = get_or_create_contact(db, payee_data)
-
-        invoice_data = invoice.dict(exclude={"payor", "payee", "invoice_lines", "id"})
-        for key, value in invoice_data.items():
-            setattr(invoice_db, key, value)
-
         invoice_db.payor_id = payor.id
+
+    if invoice.payee:
+        payee_data = invoice.payee.dict()
+        payee = get_or_create_contact(db, payee_data)
         invoice_db.payee_id = payee.id
 
-        # Update invoice lines
+    # Update invoice lines
+    if invoice.invoice_lines:
         existing_line_ids = [line.id for line in invoice_db.invoice_lines]
         updated_line_ids = []
 
-        for line_data in invoice_lines_data:
-            if "id" in line_data and line_data["id"] in existing_line_ids:
+        for line_data in invoice.invoice_lines:
+            line_id = line_data.id
+            if line_id in existing_line_ids:
                 # Update existing line
-                line_id = line_data.pop("id")
-                db.query(InvoiceLine).filter(InvoiceLine.id == line_id).update(line_data)
+                db.query(InvoiceLine).filter(InvoiceLine.id == line_id).update(line_data.dict(exclude={"id"}))
                 updated_line_ids.append(line_id)
             else:
                 # Create new line
-                invoice_line = InvoiceLine(**line_data, invoice_id=invoice_db.id)
+                invoice_line = InvoiceLine(**line_data.dict(exclude={"id"}), invoice_id=invoice_db.id)
                 db.add(invoice_line)
 
         # Delete lines that are not in the updated data
@@ -159,10 +172,10 @@ def create_or_update_invoice(invoice: InvoiceSchema, db: Session = Depends(get_d
 
     return invoice_db
 
+
 @app.get("/invoices", response_model=list[InvoiceSchema])
 def get_invoices(db: Session = Depends(get_db)):
-    invoices = db.query(Invoice.id, Invoice.invoice_number, Invoice.invoice_date, Invoice.amount, Invoice.tax,
-                        Invoice.payor_id, Invoice.payee_id).all()
+    invoices = db.query(Invoice).all()
     return [
         {
             "id": invoice.id,
@@ -170,12 +183,16 @@ def get_invoices(db: Session = Depends(get_db)):
             "invoice_date": invoice.invoice_date,
             "amount": invoice.amount,
             "tax": invoice.tax,
+            "payor_id": invoice.payor_id,
+            "payee_id": invoice.payee_id,
+            "from_llm": invoice.from_llm,
             "payor": db.query(Contact).filter(Contact.id == invoice.payor_id).first(),
             "payee": db.query(Contact).filter(Contact.id == invoice.payee_id).first(),
-            "invoice_lines": db.query(InvoiceLine).filter(InvoiceLine.invoice_id == invoice.id).all()
+            "invoice_lines": invoice.invoice_lines
         }
         for invoice in invoices
     ]
+    
     
 @app.get("/invoices/{invoice_id}/image")
 def get_invoice_image(invoice_id: int, db: Session = Depends(get_db)):
@@ -183,7 +200,8 @@ def get_invoice_image(invoice_id: int, db: Session = Depends(get_db)):
     if not invoice:
         raise HTTPException(status_code=404, detail="Invoice not found")
     
-    return Response(content=invoice.invoice_image, media_type="image/jpg")    
+    return Response(content=invoice.invoice_image, media_type="image/jpeg")
+
 
 @app.get("/contacts")
 def get_contacts(db: Session = Depends(get_db)):
